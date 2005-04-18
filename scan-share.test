@@ -1,0 +1,3 @@
+#!/bin/sh
+
+cat scan-share.test.data | ./scan-share > scan-share.test.result 2>scan-share.test.errors

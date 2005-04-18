@@ -1,0 +1,3 @@
+#!/bin/sh
+
+cat scan-host.test.data | ./scan-host >scan-host.test.result 2>scan-host.test.errors
