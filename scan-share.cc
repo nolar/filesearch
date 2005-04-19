@@ -34,6 +34,7 @@ string timeout_s;
 string depth_s;
 unsigned int timeout;
 unsigned int depth;
+bool statfiles;
 
 SMBCCTX * ctx = NULL;
 
@@ -47,12 +48,10 @@ void auth_fn (const char *server, const char *share, char *_workgroup, int wgmax
 
 void recursive (c_path root, unsigned int level)
 {
-	if (level > depth) return;
-
 	// creating paths
 	string relative;
 	for (c_path::iterator i = root.begin(); i != root.end(); i++) relative += "/" + *i;
-	string rootstr = string() + "smb://" + address + "/" + share + relative;
+	string rootstr = string() + "smb://" + address + (share.empty()?"":"/") + share + relative;
 
 	// reading dir content and closing it
 	map<string,unsigned int> dirents;
@@ -80,8 +79,9 @@ void recursive (c_path root, unsigned int level)
 					 (dirent->second == SMBC_FILE_SHARE) ||
 					 (dirent->second == SMBC_SERVER    ) ||
 					 (dirent->second == SMBC_WORKGROUP );
-			struct stat st;
-			if (ctx->stat(ctx, path.c_str(), &st) != -1)
+			struct stat st; memset(&st, 0, sizeof(st));
+			int stcode = statfiles ? ctx->stat(ctx, path.c_str(), &st) : 0;
+			if (stcode != -1)
 			{
 				cout
 					<< relative + "/" + name << endl
@@ -91,7 +91,7 @@ void recursive (c_path root, unsigned int level)
 					<< st.st_mtime         << endl
 					<< endl;
 			}
-			if (container)
+			if (container && level < depth)
 			{
 				c_path subpath = root; subpath.push_back(name);
 				recursive(subpath, level+1);
@@ -115,9 +115,11 @@ int main(int argc, char ** argv, char ** env) {
 		cin.getline(buffer, 1024); selfname  = buffer;
 		cin.getline(buffer, 1024); timeout_s = buffer;
 		cin.getline(buffer, 1024); depth_s   = buffer;
-		// parsing nad correcting
+		// parsing and correcting
 		timeout = utils::strtoul(timeout_s);
 		depth   = utils::strtoul(depth_s  );
+		statfiles = !share.empty();
+		if (share.empty()) depth = 1;
 		if (username.empty()) username = GUEST;
 		// initializing smbclient
 		ctx = smbc_new_context();
@@ -136,13 +138,8 @@ int main(int argc, char ** argv, char ** env) {
 			throw e_samba("Can not initialize smbclient.", strerror(errno));
 		}
 		// recursive scan
-		if (!share.empty())
-		{
-			c_path emptypath;
-			recursive(emptypath, 1);
-		}
-		// free iconv
-		utils::iconv_free();
+		c_path emptypath;
+		recursive(emptypath, 1);
 		// freeing smbclient
 		smbc_free_context(ctx, false); ctx = NULL;
 	}
