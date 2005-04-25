@@ -1,20 +1,24 @@
 CFLAGS=-Wall -I/usr/local/include -I/usr/local/include/mysql -O -pipe -mcpu=pentiumpro -D_THREAD_SAFE
 LDFLAGS=-Wall -L/usr/local/lib -lsmbclient -L/usr/local/lib/mysql -lmysqlclient_r -lcrypt -lm  -lz
 
-OBJECTS_FOR_SHARE=	scan-share.o utils.o request.o e_basic.o e_samba.o e_iconv.o options.o
-OBJECTS_FOR_HOST=	scan-host.o  utils.o request.o e_basic.o e_samba.o e_iconv.o options.o e_database.o database.o database_mysql.o
-OBJECTS_FOR_SCANNER=	scanner.o    utils.o request.o e_basic.o e_samba.o e_iconv.o options.o e_database.o database.o database_mysql.o e_fork.o forker.o module_smb.o
+OBJECTS=		utils.o request.o fileinfo.o e_basic.o e_samba.o e_stream.o options.o
+OBJECTS_FOR_SMB=	filesearch-smb.o
+OBJECTS_FOR_MAIN=	filesearch.o e_database.o database.o database_mysql.o e_fork.o forker.o thread.o thread_smb.o
 
-all: scan-share scan-host scanner
-
-scan-share: ${OBJECTS_FOR_SHARE}
-	g++ ${CFLAGS} ${LDFLAGS} ${OBJECTS_FOR_SHARE} -o $@
-
-scan-host: ${OBJECTS_FOR_HOST}
-	g++ ${CFLAGS} ${LDFLAGS} ${OBJECTS_FOR_HOST} -o $@
-
-scanner: ${OBJECTS_FOR_SCANNER}
-	g++ ${CFLAGS} ${LDFLAGS} ${OBJECTS_FOR_SCANNER} -o $@
+all: filesearch-smb filesearch
 
 clean:
-	@rm -f *.o *~ *.result *.errors scanner scan-host scan-share
+	@rm -f *.o *.core *~ *.test.result *.test.errors scanner filesearch-smb
+
+filesearch-smb: ${OBJECTS} ${OBJECTS_FOR_SMB}
+	g++ ${CFLAGS} ${LDFLAGS} $> -o $@
+
+filesearch: ${OBJECTS} ${OBJECTS_FOR_MAIN}
+	g++ ${CFLAGS} ${LDFLAGS} $> -o $@
+
+AAA: ${OBJECTS} AAA.o
+	g++ ${CFLAGS} ${LDFLAGS} $> -o $@
+
+BBB: ${OBJECTS} BBB.o
+	g++ ${CFLAGS} ${LDFLAGS} $> -o $@
+

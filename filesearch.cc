@@ -19,29 +19,16 @@
 #include <signal.h>
 #include "fdstream"
 #include "forker.h"
-#include "module.h"
+#include "thread.h"
+#include "thread_smb.h"
 
 c_database * database = NULL;
 c_forker * forker = NULL;
 
-void module_init ()
-{
-	database->thread_init();
-	utils::signal_uncatch(SIGCHLD);
-	utils::signal_unblock(SIGCHLD);
-	utils::signal_ignore(SIGPIPE);
-}
-
-void module_free ()
-{
-	database->thread_free();
-}
-
-
-inline void scan_address (t_ipaddr address, c_request request)
+inline void scan_address (c_request request)
 {
 	// проверяем, не была ли такая шара с такого адреса уже найдена
-	bool already = database->status_check(address, request.proto(), request.port(), request.share(), request.username());
+	bool already = database->status_check(request);
 	// если таковой еще нет, то сканируем эту шару на этом компьютере
 	if (!already)
 	{
@@ -49,9 +36,8 @@ inline void scan_address (t_ipaddr address, c_request request)
 		switch (request.proto())
 		{
 			case proto_smb:
-				module_smb__request = request;
-				module_smb__request = address;
-				forker->fork(module_smb, module_init, module_free);
+				thread_smb__request = request;
+				forker->fork(thread_smb, thread_init, thread_free);
 				break;
 			case proto_ftp:
 				break;
@@ -72,37 +58,25 @@ int main (int argc, char ** argv, char ** env) {
 	{
 		// получение параметров вызова программы и занесение их в переменные
 		//!!!
-		// connecting to database
-		database = new c_database_mysql("", "filesearch", "filesearch", "filesearch", 0, "", 0);
+		// connecting main thread to database
+		database = new c_database_mysql(getpid(), time(NULL), "", "filesearch", "filesearch", "filesearch", 0, "", 0);
 		database->status_clean();
 		// retrieving options from database config table
+		//!!!
 		// creating fork manager
-		forker = new c_forker(5); //!!! max_children should be option
+		forker = new c_forker(5); //!!! max_children should be configurable option
 		// retrieving list of address requests
 		c_requests requests = database->fetch_requests();
 		c_requests::iterator request;
 		for (request = requests.begin(); request != requests.end(); request++)
 		{
-			//!!! debug output. delete it later.
-//			cerr << "CHECKING: ";
-			cerr << "Address=" << dec << setw(10) << request->address() << "(" << hex << setw(8) << request->address() << ")";
-			cerr << " ";
-			cerr << "Netmask=" << dec << setw( 2) << request->netmask();
-			cerr << " => ";
-			cerr << dec << setw(10) << request->address_from() << "(" << hex << setw(8) << request->address_from() << ")";
-			cerr << "-";
-			cerr << dec << setw(10) << request->address_till() << "(" << hex << setw(8) << request->address_till() << ")";
-//			cerr << " // Share=" << request->share();
-//			cerr << " // Accrd=" << request->username() << ":" << request->password();
-			cerr << endl;
-
 			// пробежка по всем адресам проверяемого блока
 			t_ipaddr address_from = request->address_from();
 			t_ipaddr address_till = request->address_till();
 			for (t_ipaddr address = address_from; address < address_till; address++)
-				{scan_address(address     , *request);}
+				{c_request concrete = *request; concrete.address(address     ); scan_address(concrete);}
 			if (address_from <= address_till)
-				{scan_address(address_till, *request);}
+				{c_request concrete = *request; concrete.address(address_till); scan_address(concrete);}
 		}
 		// freeing engines resources
 	}

@@ -12,6 +12,9 @@ private:
 protected:
 public:
 	static unsigned default_timeout;
+	static unsigned default_depth;
+
+	static string command_smb;
 };
 
 #endif

@@ -7,7 +7,7 @@ c_request::c_request ()
 {
 }
 
-c_request::c_request (t_proto a_proto, bool   a_isnetwork, t_ipaddr a_address, t_ipmask a_netmask, t_ipport a_port, string a_share, string a_username, string a_password, string a_workgroup, string a_selfname, unsigned a_timeout)
+/*c_request::c_request (t_proto a_proto, bool   a_isnetwork, t_ipaddr a_address, t_ipmask a_netmask, t_ipport a_port, string a_share, string a_username, string a_password, string a_workgroup, string a_selfname, unsigned a_timeout, unsigned a_depth)
 {
 	f_proto     = a_proto;
 	f_isnetwork = a_isnetwork;
@@ -20,10 +20,12 @@ c_request::c_request (t_proto a_proto, bool   a_isnetwork, t_ipaddr a_address, t
 	f_workgroup = a_workgroup;
 	f_selfname  = a_selfname;
 	f_timeout   = a_timeout;
-}
+	f_depth     = a_depth;
+}*/
 
-c_request::c_request (string  a_proto, string a_isnetwork, string   a_address, string   a_netmask, string   a_port, string a_share, string a_username, string a_password, string a_workgroup, string a_selfname, string   a_timeout)
+c_request::c_request (string a_id, string  a_proto, string a_isnetwork, string   a_address, string   a_netmask, string   a_port, string a_share, string a_username, string a_password, string a_workgroup, string a_selfname, string   a_timeout, string  a_depth)
 {
+	f_id        = (t_id) utils::strtoul(a_id);
 	f_proto     = (t_proto) utils::strtoul(a_proto);
 	f_isnetwork = (a_isnetwork=="1");
 	f_address   = utils::strtoul(a_address);
@@ -35,10 +37,12 @@ c_request::c_request (string  a_proto, string a_isnetwork, string   a_address, s
 	f_workgroup = a_workgroup;
 	f_selfname  = a_selfname;
 	f_timeout   = utils::strtoul(a_timeout);
+	f_depth     = utils::strtoul(a_depth);
 }
 
 c_request & c_request::operator= (const c_request & right)
 {
+	f_id        = right.f_id;
 	f_proto     = right.f_proto;
 	f_isnetwork = right.f_isnetwork;
 	f_address   = right.f_address;
@@ -50,17 +54,15 @@ c_request & c_request::operator= (const c_request & right)
 	f_workgroup = right.f_workgroup;
 	f_selfname  = right.f_selfname;
 	f_timeout   = right.f_timeout;
+	f_depth     = right.f_depth;
 	return *this;
 }
 
-c_request & c_request::operator= (const t_ipaddr & address)
+
+t_id c_request::id ()
 {
-	f_address   = address;
-	f_netmask   = netmask_max;
-	return *this;
+	return f_id;
 }
-
-
 
 t_proto c_request::proto ()
 {
@@ -75,6 +77,13 @@ bool c_request::isnetwork ()
 t_ipaddr c_request::address ()
 {
 	return f_address;
+}
+
+void c_request::address (t_ipaddr address)
+{
+	f_address   = address;
+	f_netmask   = netmask_max;
+	f_isnetwork = false;
 }
 
 t_ipmask c_request::netmask ()
@@ -108,6 +117,11 @@ string c_request::share ()
 	return f_share;
 }
 
+void c_request::share (string value)
+{
+	f_share = value;
+}
+
 string c_request::username ()
 {
 	return f_username;
@@ -131,4 +145,27 @@ string c_request::selfname ()
 unsigned c_request::timeout ()
 {
 	return f_timeout ? f_timeout : options::default_timeout;
+}
+
+unsigned c_request::depth ()
+{
+	return f_depth ? f_depth : options::default_depth;
+}
+
+void c_request::depth (unsigned value)
+{
+	f_depth = value;
+}
+
+
+
+
+t_id c_request::resourceid ()
+{
+	return f_resourceid;
+}
+
+void c_request::resourceid (t_id id)
+{
+	f_resourceid = id;
 }

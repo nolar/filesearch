@@ -8,37 +8,50 @@
 class c_database_mysql : public c_database {
 private:
 	MYSQL handle;
-	bool _select_host (t_id &id, t_ipaddr address);
-	bool _insert_host (t_id &id, t_ipaddr address);
-	void _update_host (t_id id);
-	bool _select_item (t_id &id, t_id host, t_proto proto, t_ipport port, string username, string password, string hostname, string netbiosshare, string netbiosname, string netbiosgroup);
-	bool _insert_item (t_id &id, t_id host, t_proto proto, t_ipport port, string username, string password, string hostname, string netbiosshare, string netbiosname, string netbiosgroup);
-	void _update_item (t_id id);
+	//
+	bool _select_resource (t_id &id, c_request request, string share);
+	bool _insert_resource (t_id &id, c_request request, string share);
+	void _update_resource (t_id  id);
+	void _loose_resources (c_request request);
 
-	bool _select_file (t_id &id, t_id item, string path, string name);
-	bool _insert_file (t_id &id, t_id item, string path, string name);
-	void _update_file (t_id id, size_t size, time_t time);
+	bool _select_file (t_id &id, c_request request, c_fileinfo fileinfo);
+	bool _insert_file (t_id &id, c_request request, c_fileinfo fileinfo);
+	void _update_file (t_id id, c_fileinfo fileinfo);
+	void _loose_files (c_request request, string path);
 protected:
-	time_t f_startup;
-	pid_t f_process;
+	//
+	string f_host;
+	string f_user;
+	string f_pass;
+	string f_db;
+	unsigned int f_port;
+	string f_socket;
+	unsigned long f_flags;
+	// field for per-thread initialization
+	static pid_t _initialized_pid;
+	// supplimentary routines
 	string escape (string s);
-	void thread_lock ();
-	void thread_unlock ();
+///	void thread_lock ();
+///	void thread_unlock ();
 public:
-	c_database_mysql (string host, string user, string pass, string db, unsigned int port, string socket, unsigned long flags);
+	c_database_mysql (pid_t a_process, time_t a_startup, string host, string user, string pass, string db, unsigned int port, string socket, unsigned long flags);
 	virtual ~c_database_mysql ();
 	//
-	virtual void thread_init ();
-	virtual void thread_free ();
+	virtual c_database * duplicate ();
+	//
+///	virtual void thread_init ();
+///	virtual void thread_free ();
 	// Functions to work with address requests.
 	virtual c_requests fetch_requests ();
 	// Functions to work with temporary per-process host/share status.
-	virtual bool status_check (t_ipaddr address, t_proto proto, t_ipport port, string share, string username);
-	virtual void status_renew (t_ipaddr address, t_proto proto, t_ipport port, string share, string username);
+	virtual bool status_check (c_request request);
+	virtual void status_renew (c_request request);
 	virtual void status_clean ();
 	//
-	virtual t_id report_item (c_request request, string share);
-//	virtual t_id report_file (t_id item, c_path path, c_stat stat);
+	virtual t_id report_share (c_request request, string share);
+	virtual t_id report_file  (c_request request, c_fileinfo fileinfo);
+	virtual void flush_shares (c_request request);
+	virtual void flush_files  (c_request request, c_path path);
 };
 
 #endif

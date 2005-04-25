@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/select.h>
 #include <signal.h>
 
 unsigned long utils::inet_aton (string address)
@@ -39,6 +40,7 @@ string utils::inet_ntoa (unsigned long address)
 	return result;
 }
 
+/*!!!!
 string utils::iconv_convert (iconv_t handle, string s)
 {
 //	printf("in0\n");
@@ -110,6 +112,8 @@ void utils::iconv_free ()
 	if (iconv_koi8r_utf8_ready) { ::iconv_close(iconv_koi8r_utf8); iconv_koi8r_utf8_ready = false; }
 	if (iconv_utf8_koi8r_ready) { ::iconv_close(iconv_utf8_koi8r); iconv_utf8_koi8r_ready = false; }
 }
+*/
+
 
 e_address::e_address (string address)
 {
@@ -179,8 +183,9 @@ string utils::path2string (c_path path)
 
 
 
-string utils::getline(istream * stream)
+string utils::getline (istream * stream, string on_eof)
 {
+	if (stream->eof() || !stream->good()) return on_eof;
 	const int stream_buffer_size = 1024;
 	char * buffer = new char [stream_buffer_size+1];
 	memset(buffer, 0, stream_buffer_size+1);
@@ -190,17 +195,115 @@ string utils::getline(istream * stream)
 	return result;
 }
 
+string utils::readline (int fd, timeval * timer, t_stream_status * status, string::value_type terminator, bool strict)
+{
+	timeval time_start, time_stop, time_now, time_left;
+	if (timer)
+	{
+		if (timer->tv_sec < 0 || timer->tv_usec < 0 || (timer->tv_sec == 0 && timer->tv_usec == 0)) return "";
+		gettimeofday(&time_start, NULL);
+		timeradd(&time_start, timer, &time_stop);
+	}
+	if (status)
+	{
+		*status = stream_status_ok;
+	}
+	string result;
+	do {
+		// calculating time left for io operations
+		if (timer)
+		{
+			gettimeofday(&time_now, NULL);
+			timersub(&time_stop, &time_now, &time_left);
+		}
+		int code;
+		// waiting for data from file during specified time
+		fd_set fdset;
+		FD_ZERO(&fdset);
+		FD_SET(fd, &fdset);
+		code = select(1, &fdset, NULL, NULL, timer?&time_left:NULL);
+		if (code ==  0) { if (status) *status = stream_status_timeout; if (strict) result = ""; break; }
+		if (code == -1) { if (status) *status = stream_status_error  ; throw e_stream("Can not retrieve read status of fd "+utils::ultostr(fd)+".", errno, strerror(errno)); }
+		// reading data from file if they are there
+		string::value_type buf;
+		code = read(fd, &buf, sizeof(buf));
+		if (code ==  0) { if (status) *status = stream_status_eof    ; if (strict) result = ""; break; }
+		if (code == -1) { if (status) *status = stream_status_error  ; throw e_stream("Can not read from fd "+utils::ultostr(fd)+".", errno, strerror(errno)); }
+		if (buf == terminator) break;
+		result += buf;
+	} while (true);
+	gettimeofday(&time_now, NULL);
+	timersub(&time_stop, &time_now, timer);
+	if (timer->tv_sec < 0 || timer->tv_usec < 0) timerclear(timer);
+	return result;
+}
 
+vector<string> utils::readblock (int fd, timeval * timer, t_stream_status * status, string::value_type terminator, bool strict, bool skipempty, unsigned mincount, unsigned maxcount)
+{
+	vector<string> result;
+	do {
+		t_stream_status substatus;
+		string line = readline(fd, timer, &substatus, terminator, strict);
+		if (status) *status = substatus;
+		if (line.empty() && (!mincount || result.size() >= mincount)) break;
+		if (!line.empty() || !skipempty) result.push_back(line);
+		if (substatus    || ( maxcount && result.size() >= maxcount)) break;
+	} while (true);
+	return result;
+}
 
+void utils::writeline (int fd, timeval * timer, t_stream_status * status, string::value_type terminator, string value)
+{
+	timeval time_start, time_stop, time_now, time_left;
+	if (timer)
+	{
+		if (timer->tv_sec < 0 || timer->tv_usec < 0 || (timer->tv_sec == 0 && timer->tv_usec == 0)) return;
+		gettimeofday(&time_start, NULL);
+		timeradd(&time_start, timer, &time_stop);
+	}
+	if (status)
+	{
+		*status = stream_status_ok;
+	}
+	string::size_type pos = 0; value += terminator;
+	do {
+		// calculating time left for io operations
+		if (timer)
+		{
+			gettimeofday(&time_now, NULL);
+			timersub(&time_stop, &time_now, &time_left);
+		}
+		int code;
+		// waiting for data from file during specified time
+		fd_set fdset;
+		FD_ZERO(&fdset);
+		FD_SET(fd, &fdset);
+		code = select(1, NULL, &fdset, NULL, timer?&time_left:NULL);
+		if (code ==  0) { if (status) *status = stream_status_timeout; break; }
+		if (code == -1) { if (status) *status = stream_status_error  ; throw e_stream("Can not retrieve write status of fd "+utils::ultostr(fd)+".", errno, strerror(errno)); }
+		// reading data from file if they are there
+		string buf = value.substr(pos); int bufsize = buf.length();
+		code = write(fd, buf.c_str(), bufsize);
+		if (code == -1) { if (status) *status = stream_status_error  ; throw e_stream("Can not read from fd "+utils::ultostr(fd)+".", errno, strerror(errno)); }
+		if (code == bufsize) break;
+		pos += code;
+	} while (true);
+	gettimeofday(&time_now, NULL);
+	timersub(&time_stop, &time_now, timer);
+	if (timer->tv_sec < 0 || timer->tv_usec < 0) timerclear(timer);
+}
 
-
-
-
-
-
-
-
-
+void utils::writeblock (int fd, timeval * timer, t_stream_status * status, string::value_type terminator, vector<string> value)
+{
+	value.push_back(string());
+	for (vector<string>::const_iterator i = value.begin(); i != value.end(); i++)
+	{
+		t_stream_status substatus;
+		writeline(fd, timer, &substatus, terminator, *i);
+		if (status) *status = substatus;
+		if (substatus) break;
+	}
+}
 
 
 
@@ -213,9 +316,20 @@ pid_t utils::fork (t_fork_func function, t_void_func init, t_void_func free)
 		case -1:
 			throw e_fork("Can not fork process.", errno, strerror(errno));
 		case  0:
-			if (init) init();
-			status = function();
-			if (free) free();
+			try
+			{
+				if (init) init();
+				status = function();
+				if (free) free();
+			}
+			catch (exception &e)
+			{
+				status = 1;
+			}
+			catch (...)
+			{
+				status = 1;
+			}
 			_exit(status);
 		default:
 			return result;

@@ -3,9 +3,10 @@
 
 #include <string>
 #include <vector>
-#include <iconv.h>
-#include "e_iconv.h"
+//!!!#include <iconv.h>
+//!!!#include "e_iconv.h"
 #include "e_fork.h"
+#include "e_stream.h"
 
 using namespace std;
 
@@ -21,11 +22,13 @@ typedef void (*t_void_func) ();
 typedef void (*t_signal_func) (int);
 typedef int t_signal;
 
+typedef enum{stream_status_ok, stream_status_eof, stream_status_timeout, stream_status_error}  t_stream_status;
+
 class utils
 {
 private:
 protected:
-	static string iconv_convert (iconv_t handle, string s);
+//!!!	static string iconv_convert (iconv_t handle, string s);
 public:
 	static unsigned long inet_aton (string address);
 	static string inet_ntoa (unsigned long address);
@@ -34,12 +37,17 @@ public:
 	static c_path string2path (string s);
 	static string path2string (c_path path);
 
-	static string utf8_koi8r (string s);
-	static string koi8r_utf8 (string s);
-	static void iconv_free ();
+//!!!	static string utf8_koi8r (string s);
+//!!!	static string koi8r_utf8 (string s);
+//!!!	static void iconv_free ();
 
 	// streaming routies
-	static string getline(istream * stream);
+	static string getline (istream * stream, string on_eof = "");
+
+	static        string  readline  (int fd, timeval * timer, t_stream_status * status, string::value_type terminator, bool strict);
+	static vector<string> readblock (int fd, timeval * timer, t_stream_status * status, string::value_type terminator, bool strict, bool skipempty = false, unsigned mincount = 0, unsigned maxcount = 0);
+	static         void  writeline  (int fd, timeval * timer, t_stream_status * status, string::value_type terminator, string value);
+	static         void  writeblock (int fd, timeval * timer, t_stream_status * status, string::value_type terminator, vector<string> value);
 
 	// forking routines
 	static pid_t fork (t_fork_func function, t_void_func init = NULL, t_void_func free = NULL);
