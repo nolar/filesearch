@@ -243,12 +243,14 @@ void c_database_mysql::_update_resource (t_id id)
 	}
 }
 
-void c_database_mysql::_loose_resources (c_request resource)
+void c_database_mysql::_loose_resources (c_request request)
 {
 	string query = string() +
 		"update t_filesearch_resource" +
 		"   set f_stamp_lost = now()" +
-		" where f_stamp_seen < from_unixtime(" + utils::ultostr(f_startup) + ")";
+		" where f_stamp_seen < from_unixtime(" + utils::ultostr(f_startup) + ")" +
+		"   and f_address = '" + utils::ultostr(request.address()) + "'";
+		
 	if (mysql_query(&handle, query.c_str()))
 	{
 		throw e_database("Can not flush information about resources.", mysql_error(&handle));
@@ -321,17 +323,16 @@ void c_database_mysql::_update_file (t_id id, c_fileinfo fileinfo)
 	}
 }
 
-void c_database_mysql::_loose_files (c_request request, string path)
+void c_database_mysql::_loose_files (c_request request)
 {
 	string query = string() +
-		"update t_filesearch_files" +
+		"update t_filesearch_file" +
 		"   set f_stamp_lost = now()" +
 		" where f_stamp_seen < from_unixtime(" + utils::ultostr(f_startup) + ")" +
-		"   and f_resource = '" + utils::ultostr(request.resourceid()) + "'" +
-		"   and ( f_path = '" + escape(path) + "' or f_path like '" + escape(path) + "/%'";
+		"   and f_filesearch_resource = '" + utils::ultostr(request.resourceid()) + "'";
 	if (mysql_query(&handle, query.c_str()))
 	{
-		throw e_database("Can not flush information about resources.", mysql_error(&handle));
+		throw e_database("Can not flush information about files ("+query+")", mysql_error(&handle));
 	}
 }
 
@@ -343,7 +344,6 @@ void c_database_mysql::_loose_files (c_request request, string path)
 t_id c_database_mysql::report_share (c_request request, string share)
 {
 	cerr << dec << "===SHARE " << share << " on " << utils::inet_ntoa(request.address()) << endl;
-	return 0;
 	// гарантируем наличие нужного хоста с обновленными данными об обнаружении и получем его id
 	t_id resourceid;
 	if (!_select_resource(resourceid, request, share)) // пытаемся найти существующий
@@ -363,7 +363,6 @@ t_id c_database_mysql::report_share (c_request request, string share)
 void c_database_mysql::flush_shares (c_request request)
 {
 	cerr << "===SHARE FLUSH on " << utils::inet_ntoa(request.address()) << endl;
-	return;
 	_loose_resources(request);
 }
 
@@ -371,8 +370,7 @@ void c_database_mysql::flush_shares (c_request request)
 
 t_id c_database_mysql::report_file (c_request request, c_fileinfo fileinfo)
 {
-	cerr << dec << (fileinfo.container()?"---dir  ":"---file ") << fileinfo.name() << " on " << utils::inet_ntoa(request.address()) << "ctime " << fileinfo.ctime() << endl;
-	return 0;
+	cerr << dec << (fileinfo.container()?"---dir  ":"---file ") << fileinfo.name() << " on " << utils::inet_ntoa(request.address()) << endl;
 	// гарантируем создание записи о файле или находим существующую
 	t_id fileid;
 	if (!_select_file(fileid, request, fileinfo)) // пытаемся найти существующий
@@ -390,11 +388,8 @@ t_id c_database_mysql::report_file (c_request request, c_fileinfo fileinfo)
 }
 
 
-void c_database_mysql::flush_files (c_request request, c_path path)
+void c_database_mysql::flush_files (c_request request)
 {
-	string s;
-	for (c_path::const_iterator i = path.begin(); i != path.end(); i++) s += "/" + *i;
-	cerr << "--- FILE FLUSH on " << s << endl;
-	return;
-	_loose_files(request, s);
+	cerr << "--- FILE FLUSH resourceid=" << request.resourceid() << endl;
+	_loose_files(request);
 }

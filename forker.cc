@@ -18,6 +18,12 @@ void forker_child (int)
 	int wstat;
 	pid_t pid;
 	while ((pid = utils::wait_nohang(&wstat)) > 0) {
+		if (WIFEXITED  (wstat) && !WEXITSTATUS(wstat)) DEBUG("Controller process "+utils::ultostr(pid)+" exited successfully."); else
+		if (WIFEXITED  (wstat)                       ) DEBUG("Controller process "+utils::ultostr(pid)+" exited with code "+utils::ultostr(WEXITSTATUS(wstat))+"."); else
+		if (WIFSIGNALED(wstat) &&  WCOREDUMP(wstat)  ) DEBUG("Controller process "+utils::ultostr(pid)+" core dumped on signal "+utils::ultostr(WTERMSIG(wstat))+"."); else
+		if (WIFSIGNALED(wstat)                       ) DEBUG("Controller process "+utils::ultostr(pid)+" exited on signal "+utils::ultostr(WTERMSIG(wstat))+"."); else
+		if (WIFSTOPPED (wstat)                       ) DEBUG("Controller process "+utils::ultostr(pid)+" stopped on signal "+utils::ultostr(WSTOPSIG(wstat))+"."); else
+							       DEBUG("Controller process "+utils::ultostr(pid)+" exited with wstat "+utils::ultostr(wstat)+".");
 		for (vector<c_forker*>::iterator i = _forkers.begin(); i != _forkers.end(); i++)
 		{
 			(*i)->erase(pid, wstat);

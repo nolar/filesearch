@@ -32,7 +32,7 @@ public:
 	virtual t_id report_share (c_request request, string share) = 0;
 	virtual t_id report_file  (c_request request, c_fileinfo fileinfo) = 0;
 	virtual void flush_shares (c_request request) = 0;
-	virtual void flush_files  (c_request request, c_path path) = 0;
+	virtual void flush_files  (c_request request) = 0;
 };
 
 #endif

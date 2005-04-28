@@ -8,6 +8,8 @@
 #include <sys/select.h>
 #include <signal.h>
 
+#include "options.h"
+
 unsigned long utils::inet_aton (string address)
 {
 	//!!! add more checks for valid address here
@@ -143,10 +145,10 @@ string e_address::message ()
 
 
 
-string utils::ultostr (unsigned long value)
+string utils::ultostr (unsigned long value, int padsize)
 {
 	string::value_type * buffer = (string::value_type*) calloc(1024, sizeof(string::value_type));
-	sprintf(buffer, "%U", value);
+	sprintf(buffer, "%*U", padsize, value);
 	string result = buffer;
 	free(buffer);
 	return result;
@@ -157,45 +159,54 @@ unsigned long utils::strtoul (string value)
 	return ::strtoul(value.c_str(), NULL, 10);
 }
 
-c_path utils::string2path (string s)
+c_path utils::string2path (string value)
 {
 	string::size_type idx, pos, prev = (string::size_type) -1;
 	c_path result;
 	do {
-		idx = (prev+1 >= s.length()) ? string::npos : s.find('/', prev+1);
-		pos = (idx == string::npos) ? s.length() : idx;
-		string item = s.substr(prev+1, pos-(prev+1));
+		idx = (prev+1 >= value.length()) ? string::npos : value.find('/', prev+1);
+		pos = (idx == string::npos) ? value.length() : idx;
+		string item = value.substr(prev+1, pos-(prev+1));
 		if (!item.empty()) result.push_back(item);
 		prev = pos;
 	} while (idx != string::npos);
 	return result;
 }
 
-string utils::path2string (c_path path)
+string utils::path2string (c_path value)
 {
 	string result;
-	for (c_path::const_iterator i = path.begin(); i != path.end(); i++)
+	for (c_path::const_iterator i = value.begin(); i != value.end(); i++)
 	{
 		result = result + '/' + *i;
 	}
 	return result;
 }
 
-
-
-string utils::getline (istream * stream, string on_eof)
+string utils::time2string (time_t value)
 {
-	if (stream->eof() || !stream->good()) return on_eof;
-	const int stream_buffer_size = 1024;
-	char * buffer = new char [stream_buffer_size+1];
-	memset(buffer, 0, stream_buffer_size+1);
-	stream->getline(buffer, stream_buffer_size);
-	string result = buffer;
-	delete[] buffer;
-	return result;
+	return ultostr(value);
 }
 
-string utils::readline (int fd, timeval * timer, t_stream_status * status, string::value_type terminator, bool strict)
+time_t utils::string2time (string value)
+{
+	return strtoul(value);
+}
+
+string utils::size2string (size_t value)
+{
+	return ultostr(value);
+}
+
+size_t utils::string2size (string value)
+{
+	return strtoul(value);
+}
+
+
+
+
+string utils::readline (int fd, timeval * timer, t_stream_status * status, string::value_type terminator, bool strict, bool skipempty)
 {
 	timeval time_start, time_stop, time_now, time_left;
 	if (timer)
@@ -210,6 +221,8 @@ string utils::readline (int fd, timeval * timer, t_stream_status * status, strin
 	}
 	string result;
 	do {
+		// checking if fd exists
+		if (!utils::fd_ok(fd)) { if(status) *status = stream_status_nofd; break; }
 		// calculating time left for io operations
 		if (timer)
 		{
@@ -221,20 +234,26 @@ string utils::readline (int fd, timeval * timer, t_stream_status * status, strin
 		fd_set fdset;
 		FD_ZERO(&fdset);
 		FD_SET(fd, &fdset);
-		code = select(1, &fdset, NULL, NULL, timer?&time_left:NULL);
+//!!!		Can not understand why select() does not work on pipes :-\ Assuming that fd is always ready for reading.
+//!!!		code = timer ? ::select(1, &fdset, NULL, NULL, &time_left) : 1;
+		code = (timer && ((time_left.tv_sec < 0) || (time_left.tv_usec < 0))) ? 0 : 1;
 		if (code ==  0) { if (status) *status = stream_status_timeout; if (strict) result = ""; break; }
 		if (code == -1) { if (status) *status = stream_status_error  ; throw e_stream("Can not retrieve read status of fd "+utils::ultostr(fd)+".", errno, strerror(errno)); }
 		// reading data from file if they are there
 		string::value_type buf;
-		code = read(fd, &buf, sizeof(buf));
+		code = ::read(fd, &buf, sizeof(buf));
 		if (code ==  0) { if (status) *status = stream_status_eof    ; if (strict) result = ""; break; }
+		if (code == -1) { if (errno == EAGAIN) continue; }
 		if (code == -1) { if (status) *status = stream_status_error  ; throw e_stream("Can not read from fd "+utils::ultostr(fd)+".", errno, strerror(errno)); }
-		if (buf == terminator) break;
-		result += buf;
+		if (buf == terminator && (!skipempty || !result.empty())) break;
+		if (buf != terminator) result += buf;
 	} while (true);
-	gettimeofday(&time_now, NULL);
-	timersub(&time_stop, &time_now, timer);
-	if (timer->tv_sec < 0 || timer->tv_usec < 0) timerclear(timer);
+	if (timer)
+	{
+		gettimeofday(&time_now, NULL);
+		timersub(&time_stop, &time_now, timer);
+		if (timer->tv_sec < 0 || timer->tv_usec < 0) timerclear(timer);
+	}
 	return result;
 }
 
@@ -243,11 +262,12 @@ vector<string> utils::readblock (int fd, timeval * timer, t_stream_status * stat
 	vector<string> result;
 	do {
 		t_stream_status substatus;
-		string line = readline(fd, timer, &substatus, terminator, strict);
+		string line = readline(fd, timer, &substatus, terminator, strict, skipempty);
 		if (status) *status = substatus;
-		if (line.empty() && (!mincount || result.size() >= mincount)) break;
-		if (!line.empty() || !skipempty) result.push_back(line);
-		if (substatus    || ( maxcount && result.size() >= maxcount)) break;
+		skipempty = false;
+		if ( line.empty() && (!mincount || result.size() >= mincount)) break;
+		if (!line.empty() || !strict || !substatus) result.push_back(line);
+		if ( substatus    || ( maxcount && result.size() >= maxcount)) break;
 	} while (true);
 	return result;
 }
@@ -267,30 +287,37 @@ void utils::writeline (int fd, timeval * timer, t_stream_status * status, string
 	}
 	string::size_type pos = 0; value += terminator;
 	do {
+		// checking if fd exists
+		if (!utils::fd_ok(fd)) { if(status) *status = stream_status_nofd; break; }
 		// calculating time left for io operations
 		if (timer)
 		{
 			gettimeofday(&time_now, NULL);
 			timersub(&time_stop, &time_now, &time_left);
-		}
+		};
 		int code;
 		// waiting for data from file during specified time
 		fd_set fdset;
 		FD_ZERO(&fdset);
 		FD_SET(fd, &fdset);
-		code = select(1, NULL, &fdset, NULL, timer?&time_left:NULL);
+//!!!		Can not understand why select() does not work for writing :-\ Assuming that fd is always ready for writing.
+//		code = timer ? ::select(1, NULL, &fdset, NULL, &time_left) : 1;
+		code = (timer && ((time_left.tv_sec < 0) || (time_left.tv_usec < 0))) ? 0 : 1;
 		if (code ==  0) { if (status) *status = stream_status_timeout; break; }
 		if (code == -1) { if (status) *status = stream_status_error  ; throw e_stream("Can not retrieve write status of fd "+utils::ultostr(fd)+".", errno, strerror(errno)); }
 		// reading data from file if they are there
 		string buf = value.substr(pos); int bufsize = buf.length();
-		code = write(fd, buf.c_str(), bufsize);
-		if (code == -1) { if (status) *status = stream_status_error  ; throw e_stream("Can not read from fd "+utils::ultostr(fd)+".", errno, strerror(errno)); }
+		code = ::write(fd, buf.c_str(), bufsize);
+		if (code == -1) { if (status) *status = stream_status_error  ; throw e_stream("Can not write to fd "+utils::ultostr(fd)+".", errno, strerror(errno)); }
 		if (code == bufsize) break;
 		pos += code;
 	} while (true);
-	gettimeofday(&time_now, NULL);
-	timersub(&time_stop, &time_now, timer);
-	if (timer->tv_sec < 0 || timer->tv_usec < 0) timerclear(timer);
+	if (timer)
+	{
+		gettimeofday(&time_now, NULL);
+		timersub(&time_stop, &time_now, timer);
+		if (timer->tv_sec < 0 || timer->tv_usec < 0) timerclear(timer);
+	}
 }
 
 void utils::writeblock (int fd, timeval * timer, t_stream_status * status, string::value_type terminator, vector<string> value)
@@ -303,6 +330,42 @@ void utils::writeblock (int fd, timeval * timer, t_stream_status * status, strin
 		if (status) *status = substatus;
 		if (substatus) break;
 	}
+}
+
+string utils::_time_pid_prefix ()
+{
+	time_t t1 = time(NULL);
+	struct tm * t2 = localtime(&t1);
+	char * buffer = new char[1025];
+	size_t p = strftime(buffer, 1024, options::log_time_format, t2);
+	buffer[p] = 0;
+	string result = string() + buffer + " [" + utils::ultostr(getpid(), options::log_pid_length) + "] ";
+	delete[] buffer;
+	return result;
+}
+
+void utils::log (string message)
+{
+	message = _time_pid_prefix() + message;
+	writeline(options::fd_log, NULL, NULL, options::terminator, message);
+}
+
+void utils::log (vector<string> message)
+{
+	for (vector<string>::iterator i = message.begin(); i != message.end(); i++) *i = _time_pid_prefix() + *i;
+	writeblock(options::fd_log, NULL, NULL, options::terminator, message);
+}
+
+void utils::debug (string message)
+{
+	message = _time_pid_prefix() + message;
+	writeline(options::fd_debug, NULL, NULL, options::terminator, message);
+}
+
+void utils::debug (vector<string> message)
+{
+	for (vector<string>::iterator i = message.begin(); i != message.end(); i++) *i = _time_pid_prefix() + *i;
+	writeblock(options::fd_debug, NULL, NULL, options::terminator, message);
 }
 
 
@@ -322,12 +385,19 @@ pid_t utils::fork (t_fork_func function, t_void_func init, t_void_func free)
 				status = function();
 				if (free) free();
 			}
+			catch (e_basic &e)
+			{
+				LOG("Exception in process id "+utils::ultostr(getpid())+": "+e.what());
+				status = 1;
+			}
 			catch (exception &e)
 			{
+				LOG("Exception in process id "+utils::ultostr(getpid())+": "+e.what());
 				status = 1;
 			}
 			catch (...)
 			{
+				LOG("Exception without type and message in process id "+utils::ultostr(getpid())+".");
 				status = 1;
 			}
 			_exit(status);
@@ -336,7 +406,7 @@ pid_t utils::fork (t_fork_func function, t_void_func init, t_void_func free)
 	};
 }
 
-pid_t utils::exec (char * cmd, char ** arg, char ** env, int stdin, int stdout, int stderr)
+pid_t utils::exec (char * cmd, char ** arg, char ** env, map<int,int> fds)
 {
 	pid_t result = vfork();
 	switch (result)
@@ -344,9 +414,7 @@ pid_t utils::exec (char * cmd, char ** arg, char ** env, int stdin, int stdout, 
 		case -1:
 			throw e_fork("Can not fork process for executing.", errno, strerror(errno));
 		case  0:
-			fd_move(stdin , 0);
-			fd_move(stdout, 1);
-			fd_move(stderr, 2);
+			fd_move(fds);
 			execve(cmd, arg, env);
 			//!!! log error here!
 			_exit(1);
@@ -357,7 +425,7 @@ pid_t utils::exec (char * cmd, char ** arg, char ** env, int stdin, int stdout, 
 	
 }
 
-pid_t utils::exec (string cmd, vector<string> arg, vector<string> env, int stdin, int stdout, int stderr)
+pid_t utils::exec (string cmd, vector<string> arg, vector<string> env, map<int,int> fds)
 {
 	// preparing arg
 	int argc = arg.size();
@@ -373,25 +441,49 @@ pid_t utils::exec (string cmd, vector<string> arg, vector<string> env, int stdin
 		env_[i] = const_cast<char*>(env[i].c_str());
 	env_[envc] = NULL;
 	// executing in subprocess
-	return exec(const_cast<char*>(cmd.c_str()), arg_, env_, stdin, stdout, stderr);
+	return exec(const_cast<char*>(cmd.c_str()), arg_, env_, fds);
 }
 
 
+bool utils::fd_ok (int fd)
+{
+	if (fd == -1) return false;
+	int code = fcntl(fd, F_GETFL, 0);
+	if (code != -1) return true;
+	if (errno == EBADF) return false;
+	return false;
+}
 
 void utils::fd_copy (int oldfd, int newfd)
 {
-	if ((oldfd == -1) || (newfd == -1) || (oldfd == newfd)) return;
-	if (fcntl(oldfd, F_GETFL, 0) == -1)
+	if (oldfd == newfd) return;
+	if ((oldfd != -1) && (fcntl(oldfd, F_GETFL, 0) == -1))
 		throw e_fork("Can not copy fd "+utils::ultostr(oldfd)+" to fd "+utils::ultostr(newfd)+" because source fd does not exist.", errno, strerror(errno));
-	close(newfd);
-	if (fcntl(oldfd, F_DUPFD, newfd) == -1)
+	if (newfd != -1) close(newfd);
+	if ((oldfd != -1) && (newfd != -1) && (fcntl(oldfd, F_DUPFD, newfd) == -1))
 		throw e_fork("Can not copy fd "+utils::ultostr(oldfd)+" to fd "+utils::ultostr(newfd)+" because duping failed.", errno, strerror(errno));
 }
 
 void utils::fd_move (int oldfd, int newfd)
 {
 	fd_copy(oldfd, newfd);
-	close(oldfd);
+	if (oldfd != -1) close(oldfd);
+}
+
+void utils::fd_copy (map<int,int> fds)
+{
+	for (map<int,int>::const_iterator i = fds.begin(); i != fds.end(); i++)
+	{
+		fd_copy(i->second, i->first);
+	}
+}
+
+void utils::fd_move (map<int,int> fds)
+{
+	for (map<int,int>::const_iterator i = fds.begin(); i != fds.end(); i++)
+	{
+		fd_move(i->second, i->first);
+	}
 }
 
 

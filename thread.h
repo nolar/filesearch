@@ -9,11 +9,20 @@
 
 using namespace std;
 
-typedef void (*t_thread_wrap_topaction  ) (c_request);
-typedef void (*t_thread_wrap_subaction  ) (c_request, c_fileinfo);
-typedef void (*t_thread_wrap_flushaction) (c_request, c_path);
-extern void thread_wrap (string command, c_request request, t_thread_wrap_topaction topaction, t_thread_wrap_subaction subaction, t_thread_wrap_flushaction flushaction);
+typedef void (*t_thread_wrap_action_resource) (c_request, c_path);
+typedef void (*t_thread_wrap_action_dir     ) (c_request, c_fileinfo);
+typedef void (*t_thread_wrap_action_file    ) (c_request, c_fileinfo);
+typedef void (*t_thread_wrap_action_enter   ) (c_request, c_path);
+typedef void (*t_thread_wrap_action_leave   ) (c_request, c_path);
+typedef void (*t_thread_wrap_action_start   ) (c_request);
 extern void thread_init ();
 extern void thread_free ();
+extern bool thread_wrap (string command, c_request request,
+	t_thread_wrap_action_resource action_resource,
+	t_thread_wrap_action_dir      action_dir,
+	t_thread_wrap_action_file     action_file,
+	t_thread_wrap_action_enter    action_enter,
+	t_thread_wrap_action_leave    action_leave,
+	t_thread_wrap_action_start    action_start);
 
 #endif

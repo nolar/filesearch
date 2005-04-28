@@ -1,3 +1,3 @@
 #!/bin/sh
 
-cat filesearch-smb.test.data | ./filesearch-smb > filesearch-smb.test.result 2>filesearch-smb.test.errors
+./filesearch-smb <filesearch-smb.test.data 3>filesearch-smb.test.result 2>filesearch-smb.test.log 1>filesearch-smb.test.debug

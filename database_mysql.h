@@ -17,7 +17,7 @@ private:
 	bool _select_file (t_id &id, c_request request, c_fileinfo fileinfo);
 	bool _insert_file (t_id &id, c_request request, c_fileinfo fileinfo);
 	void _update_file (t_id id, c_fileinfo fileinfo);
-	void _loose_files (c_request request, string path);
+	void _loose_files (c_request request);
 protected:
 	//
 	string f_host;
@@ -51,7 +51,7 @@ public:
 	virtual t_id report_share (c_request request, string share);
 	virtual t_id report_file  (c_request request, c_fileinfo fileinfo);
 	virtual void flush_shares (c_request request);
-	virtual void flush_files  (c_request request, c_path path);
+	virtual void flush_files  (c_request request);
 };
 
 #endif

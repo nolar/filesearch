@@ -17,37 +17,16 @@ extern c_database * database;
 //
 vector< pair<string,t_id> > thread_smb__shares;
 
-// when scanning host for a list of shares, doing it when first share was found
-void thread_smb__share_topaction (c_request request)
-{
-	database->status_renew(request);
-}
 
-// when scanning host for a list of shares, doing it for each found share
-void thread_smb__share_subaction (c_request request, c_fileinfo fileinfo)
+void thread_smb__action_resource (c_request request, c_path path)
 {
 	pair<string,t_id> item;
-	item.first  = fileinfo.name();
-	item.second = database->report_share(request, fileinfo.name());
+	item.first  = path.empty()?string():path[path.size()-1];
+	item.second = database->report_share(request, item.first);
 	thread_smb__shares.push_back(item);
 }
 
-// 
-void thread_smb__share_flushaction (c_request request, c_path)
-{
-	database->flush_shares(request);
-}
-
-
-
-// when scanning share for a list of files, doing it when first file was found
-void thread_smb__file_topaction (c_request request)
-{
-	database->status_renew(request);
-}
-
-// when scanning share for a list of files, doing it for each found file
-void thread_smb__file_subaction (c_request request, c_fileinfo fileinfo)
+void thread_smb__action_dir (c_request request, c_fileinfo fileinfo)
 {
 //!!!	string s; c_path p = fileinfo.path();
 //!!!	for (c_path::const_iterator i = p.begin(); i != p.end(); i++) s += "/" + *i;
@@ -55,10 +34,17 @@ void thread_smb__file_subaction (c_request request, c_fileinfo fileinfo)
 	database->report_file(request, fileinfo);
 }
 
-// 
-void thread_smb__file_flushaction (c_request request, c_path path)
+void thread_smb__action_file (c_request request, c_fileinfo fileinfo)
 {
-	database->flush_files(request, path);
+//!!!	string s; c_path p = fileinfo.path();
+//!!!	for (c_path::const_iterator i = p.begin(); i != p.end(); i++) s += "/" + *i;
+//!!!	cerr << (fileinfo.container()?"Dir  '":"File '") << s << "' on " << utils::inet_ntoa(request.address()) << endl;
+	database->report_file(request, fileinfo);
+}
+
+void thread_smb__action_start (c_request request)
+{
+	database->status_renew(request);
 }
 
 
@@ -69,27 +55,49 @@ int thread_smb ()
 {
 	int result = 0;
 	c_request request = thread_smb__request;
-	cerr << "************ ADDRESS " << utils::inet_ntoa(request.address()) << " ***********" << endl;
 	// getting list of shares
 	thread_smb__shares.clear();
 	if (request.share().empty())
 	{
+		DEBUG("(smb) Scanning for shares on ip='"+utils::inet_ntoa(request.address())+"',username='"+request.username()+"'.");
 		c_request sharerequest = request;
 		sharerequest.depth(1);
-		thread_wrap(options::command_smb, sharerequest, thread_smb__share_topaction,  thread_smb__share_subaction, thread_smb__share_flushaction);
+		if (thread_wrap(options::command_smb, sharerequest,
+			thread_smb__action_resource,
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			thread_smb__action_start))
+		{
+			DEBUG("(smb) Flushing shares on ip='"+utils::inet_ntoa(request.address())+"',username='"+request.username()+"'.");
+			database->flush_shares(sharerequest);
+		}
+		DEBUG("(smb) Scanned for shares on ip='"+utils::inet_ntoa(request.address())+"',username='"+request.username()+"'. Got "+utils::ultostr(thread_smb__shares.size())+" shares.");
 	} else {
+		DEBUG("(smb) Requested share '"+request.share()+"' on ip='"+utils::inet_ntoa(request.address())+"',username='"+request.username()+"'.");
 		c_path filepath; filepath.push_back(request.share());
-		c_fileinfo fileinfo(filepath, true, 0, 0, 0);
-		thread_smb__share_subaction(request, fileinfo);
+		thread_smb__action_resource(request, filepath);
 	}
 	// scanning each share for files with independent sequentive thread
 	for (vector< pair<string,t_id> >::const_iterator i = thread_smb__shares.begin(); i != thread_smb__shares.end(); i++)
 	{
+		DEBUG("(smb) Scanning for files on ip='"+utils::inet_ntoa(request.address())+"',share='"+i->first+"',username='"+request.username()+"'.");
 		c_request sharerequest = request;
 		sharerequest.share(i->first);
 		sharerequest.resourceid(i->second);
-		thread_wrap(options::command_smb, sharerequest, thread_smb__file_topaction, thread_smb__file_subaction, thread_smb__file_flushaction);
+		if (thread_wrap(options::command_smb, sharerequest,
+			NULL,
+			thread_smb__action_dir,
+			thread_smb__action_file,
+			NULL,
+			NULL,
+			thread_smb__action_start))
+		{
+			DEBUG("(smb) Flushing files on ip='"+utils::inet_ntoa(request.address())+"',share='"+i->first+"',username='"+request.username()+"'.");
+			database->flush_files(sharerequest);
+		}
+		DEBUG("(smb) Scanned for files on ip='"+utils::inet_ntoa(request.address())+"',share='"+i->first+"',username='"+request.username()+"'.");
 	}
-
 	return result;
 }
