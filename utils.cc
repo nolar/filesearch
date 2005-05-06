@@ -211,7 +211,7 @@ string utils::readline (int fd, timeval * timer, t_stream_status * status, strin
 	timeval time_start, time_stop, time_now, time_left;
 	if (timer)
 	{
-		if (timer->tv_sec < 0 || timer->tv_usec < 0 || (timer->tv_sec == 0 && timer->tv_usec == 0)) return "";
+		if (timer->tv_sec < 0 || timer->tv_usec < 0 || (timer->tv_sec == 0 && timer->tv_usec == 0)) return ""; ///!!! set status=timeout here?
 		gettimeofday(&time_start, NULL);
 		timeradd(&time_start, timer, &time_stop);
 	}
@@ -219,25 +219,31 @@ string utils::readline (int fd, timeval * timer, t_stream_status * status, strin
 	{
 		*status = stream_status_ok;
 	}
+	// checking if fd exists
+	if (!utils::fd_ok(fd)) { if(status) *status = stream_status_nofd; return ""; } //!!! maybe make do{}while -> while(!status){} and not to return reesult here, but just to setup status to error, and add timeout checking before any while()ing
+//!!!	int flags = utils::fd_flags(fd);
+//!!!	utils::fd_flags(fd, flags | O_NONBLOCK | O_DIRECT);
+	//
 	string result;
 	do {
-		// checking if fd exists
-		if (!utils::fd_ok(fd)) { if(status) *status = stream_status_nofd; break; }
+		int code;
 		// calculating time left for io operations
 		if (timer)
 		{
 			gettimeofday(&time_now, NULL);
 			timersub(&time_stop, &time_now, &time_left);
+			if ((time_left.tv_sec < 0) || (time_left.tv_usec < 0))
+				{ if (status) *status = stream_status_timeout; if (strict) result = ""; break; }
 		}
-		int code;
 		// waiting for data from file during specified time
 		fd_set fdset;
 		FD_ZERO(&fdset);
 		FD_SET(fd, &fdset);
 //!!!		Can not understand why select() does not work on pipes :-\ Assuming that fd is always ready for reading.
-//!!!		code = timer ? ::select(1, &fdset, NULL, NULL, &time_left) : 1;
-		code = (timer && ((time_left.tv_sec < 0) || (time_left.tv_usec < 0))) ? 0 : 1;
+//!!!		code = (timer && ((time_left.tv_sec < 0) || (time_left.tv_usec < 0))) ? 0 : 1;
+		code = ::select(fd+1, &fdset, NULL, NULL, timer ? &time_left : NULL);
 		if (code ==  0) { if (status) *status = stream_status_timeout; if (strict) result = ""; break; }
+		if (code == -1) { if (errno == EAGAIN) continue; }
 		if (code == -1) { if (status) *status = stream_status_error  ; throw e_stream("Can not retrieve read status of fd "+utils::ultostr(fd)+".", errno, strerror(errno)); }
 		// reading data from file if they are there
 		string::value_type buf;
@@ -485,6 +491,20 @@ void utils::fd_move (map<int,int> fds)
 		fd_move(i->second, i->first);
 	}
 }
+
+int utils::fd_flags (int fd)
+{
+	int result = fcntl(fd, F_GETFL, 0);
+	if (result == -1) throw e_basic/*e_io*/("Can not get flags of fd "+utils::ultostr(fd), errno, strerror(errno));
+	return result;
+}
+
+void utils::fd_flags (int fd, int flags)
+{
+	int result = fcntl(fd, F_SETFL, flags);
+	if (result == -1) throw e_basic/*e_io*/("Can not set flags of fd "+utils::ultostr(fd), errno, strerror(errno));
+}
+
 
 
 

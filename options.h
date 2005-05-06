@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include "utils.h"
 
 using namespace std;
 
@@ -11,6 +12,7 @@ class options
 private:
 protected:
 public:
+	static unsigned default_children;
 	static unsigned default_timeout;
 	static unsigned default_depth;
 
@@ -34,6 +36,9 @@ public:
 
 	static char * log_time_format;
 	static int    log_pid_length;
+
+	static vector<t_id>::size_type database_cachesize_resource;
+	static vector<t_id>::size_type database_cachesize_file;
 };
 
 #endif

@@ -1,5 +1,5 @@
-CFLAGS=-Wall -I/usr/local/include -I/usr/local/include/mysql -O -pipe -mcpu=pentiumpro -D_THREAD_SAFE
-LDFLAGS=-Wall -L/usr/local/lib -lsmbclient -L/usr/local/lib/mysql -lmysqlclient_r -lcrypt -lm  -lz
+CFLAGS=-Wall -I/usr/local/include -I/usr/local/include/mysql -O -pipe -mcpu=pentiumpro
+LDFLAGS=-Wall -L/usr/local/lib -lsmbclient -L/usr/local/lib/mysql -lmysqlclient -lcrypt -lm  -lz
 
 OBJECTS=		utils.o request.o fileinfo.o e_basic.o e_samba.o e_stream.o options.o
 OBJECTS_FOR_SMB=	filesearch-smb.o

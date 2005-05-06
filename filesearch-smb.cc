@@ -236,7 +236,7 @@ int main(int argc, char ** argv, char ** env) {
 						} else {
 							utils::writeblock(options::fd_data, NULL, NULL, options::terminator, formate_resource(currpathstr + "/" + name));
 						}
-						if (container && level < depth)
+						if (container && ((depth <= 0) || (level < depth)))
 						{
 							DEBUG("Putting recursible item '"+openpathstr+"/"+name+"' for future scanning.");
 							pair<c_path,unsigned> t;

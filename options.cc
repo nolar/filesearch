@@ -1,7 +1,8 @@
 #include "options.h"
 
-unsigned options::default_timeout = 5;
-unsigned options::default_depth = 3; //!!! change to infinite
+unsigned options::default_children = 20;
+unsigned options::default_timeout = 1;
+unsigned options::default_depth = 0;
 
 string options::command_smb = "./filesearch-smb";
 
@@ -24,3 +25,6 @@ int options::fd_null  = -1;
 
 char * options::log_time_format = "%Y-%m-%d %H:%M:%S";
 int    options::log_pid_length = 5;
+
+vector<t_id>::size_type options::database_cachesize_resource = 10;
+vector<t_id>::size_type options::database_cachesize_file     = 10;

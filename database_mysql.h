@@ -9,15 +9,22 @@ class c_database_mysql : public c_database {
 private:
 	MYSQL handle;
 	//
-	bool _select_resource (t_id &id, c_request request, string share);
-	bool _insert_resource (t_id &id, c_request request, string share);
-	void _update_resource (t_id  id);
-	void _loose_resources (c_request request);
+	vector<t_id> _resource_cache;
+	bool _resource_find  (t_id &id, bool &changed, c_request request, string share);
+	bool _resource_add   (t_id &id, c_request request, string share);
+	void _resource_loose (c_request request);
+	void _resource_loosf (c_request request);
+	void _resource_touch (vector<t_id> ids);
+	void _resource_flush (bool forced);
 
-	bool _select_file (t_id &id, c_request request, c_fileinfo fileinfo);
-	bool _insert_file (t_id &id, c_request request, c_fileinfo fileinfo);
-	void _update_file (t_id id, c_fileinfo fileinfo);
-	void _loose_files (c_request request);
+	vector<t_id> _file_cache;
+	bool _file_find   (t_id &id, bool &changed, c_request request, c_fileinfo fileinfo);
+	bool _file_add    (t_id &id, c_request request, c_fileinfo fileinfo);
+	void _file_loose  (c_request request);
+	void _file_touch  (vector<t_id> ids);
+	void _file_flush  (bool forced);
+	void _file_change (t_id id, c_fileinfo fileinfo);
+
 protected:
 	//
 	string f_host;

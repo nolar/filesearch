@@ -1,6 +1,7 @@
 #include "database_mysql.h"
 #include <iostream>
 #include <iomanip>
+#include "options.h"
 
 pid_t c_database_mysql::_initialized_pid = NULL;
 
@@ -170,10 +171,10 @@ void c_database_mysql::status_clean ()
 		"delete from t_filesearch_status" +
 		" where f_startup  = '" + escape(utils::ultostr(f_startup)) + "'" +
 		"   and f_process  = '" + escape(utils::ultostr(f_process)) + "'";
-//	if (mysql_query(&handle, query.c_str()))
-//	{
-//		throw e_database("Can not clean temporary records.", mysql_error(&handle));
-//	}
+	if (mysql_query(&handle, query.c_str()))
+	{
+		throw e_database("Can not clean temporary records.", mysql_error(&handle));
+	}
 }
 
 
@@ -181,30 +182,35 @@ void c_database_mysql::status_clean ()
 /***************************************************************************************************
                            SUPPLIMENTARY ROUTES FOR FILE REPORTING/FLUSHING
  ***************************************************************************************************/
-bool c_database_mysql::_select_resource (t_id &id, c_request request, string share)
+bool c_database_mysql::_resource_find (t_id &id, bool &changed, c_request request, string share)
 {
 	bool result = false;
 	string query = string() +
-		"select f_filesearch_resource from t_filesearch_resource, t_filesearch_request" +
+		"select f_filesearch_resource,t_filesearch_resource.f_stamp_lost from t_filesearch_resource, t_filesearch_request" +
 		" where t_filesearch_request.f_filesearch_request = t_filesearch_resource.f_filesearch_request" +
 		" and   t_filesearch_request .f_protocol = '" + escape(utils::ultostr(request.proto()))    + "'" +
 		" and   t_filesearch_resource.f_address  = '" + escape(utils::ultostr(request.address()) ) + "'" +
 		" and   t_filesearch_request .f_port     = '" + escape(utils::ultostr(request.port()))     + "'" +
 		" and   t_filesearch_resource.f_share    = '" + escape(share)                              + "'" +
 		" and   t_filesearch_request .f_username = '" + escape(request.username())                 + "'";
+	DEBUG("Trying query '" + query + "'.");
 	if (mysql_query(&handle, query.c_str()))
 	{
+		DEBUG("Query failed.");
 		throw e_database("Can not retrieve information about required resource.", mysql_error(&handle));
 	} else {
 		MYSQL_RES * set = mysql_store_result(&handle);
 		if (!set)
 		{
+			DEBUG("Query ok, but result set is NULL.");
 			throw e_database("Resource information retrieval failed with null set.", mysql_error(&handle));
 		}
+		DEBUG("Query successful.");
 		MYSQL_ROW row;
 		while ((row = mysql_fetch_row(set)))
 		{
 			id = utils::strtoul(row[0]?row[0]:"");
+			changed = (row[1] != NULL);
 			result = true;
 		}
 		mysql_free_result(set);
@@ -212,127 +218,221 @@ bool c_database_mysql::_select_resource (t_id &id, c_request request, string sha
 	return result;
 }
 
-bool c_database_mysql::_insert_resource (t_id &id, c_request request, string share)
+bool c_database_mysql::_resource_add (t_id &id, c_request request, string share)
 {
 	bool result = false;
 	string query = string() +
-		"insert into t_filesearch_resource (f_filesearch_request, f_address, f_share, f_stamp_found)" +
+		"insert into t_filesearch_resource (f_filesearch_request, f_address, f_share, f_stamp_found, f_stamp_seen, f_stamp_lost)" +
 		" values ('" + escape(utils::ultostr(request.id())) + "'" + 
 			",'" + escape(utils::ultostr(request.address())) + "'" +
 			",'" + escape(share) + "'" +
-			", now())";
+			", now(), now(), NULL)";
+	DEBUG("Trying query '" + query + "'.");
 	if (mysql_query(&handle, query.c_str()))
 	{
+		DEBUG("Query failed.");
+		//??? what to do if can not add record?
 	} else {
 		id = mysql_insert_id(&handle);
 		result = true;
+		DEBUG("Query successful. Inserted id is "+utils::ultostr(id));
 	}
 	return result;
 }
 
-void c_database_mysql::_update_resource (t_id id)
-{
-	string query = string() +
-		"update t_filesearch_resource" +
-		"   set f_stamp_seen = now()" +
-		"     , f_stamp_lost = NULL"
-		" where f_filesearch_resource = '" + escape(utils::ultostr(id)) + "'";
-	if (mysql_query(&handle, query.c_str()))
-	{
-		throw e_database("Can not update information about resource.", mysql_error(&handle));
-	}
-}
-
-void c_database_mysql::_loose_resources (c_request request)
+void c_database_mysql::_resource_loose (c_request request)
 {
 	string query = string() +
 		"update t_filesearch_resource" +
 		"   set f_stamp_lost = now()" +
 		" where f_stamp_seen < from_unixtime(" + utils::ultostr(f_startup) + ")" +
+		"   and f_stamp_lost is null" +
 		"   and f_address = '" + utils::ultostr(request.address()) + "'";
-		
+	DEBUG("Trying query '" + query + "'.");
 	if (mysql_query(&handle, query.c_str()))
 	{
+		DEBUG("Query failed.");
 		throw e_database("Can not flush information about resources.", mysql_error(&handle));
+	} else {
+		DEBUG("Query successful.");
+	}
+}
+
+void c_database_mysql::_resource_loosf (c_request request)
+{
+	string query = string() +
+		"update t_filesearch_file" +
+		"   set f_stamp_lost = now()" +
+		" where f_stamp_seen < from_unixtime(" + utils::ultostr(f_startup) + ")" +
+		"   and f_stamp_lost is null" +
+		"   and f_filesearch_resource in" +
+		"           (select f_filesearch_resource from t_filesearch_resource" + 
+		"             where f_address = '" + utils::ultostr(request.address()) + "'" +
+		"               and f_stamp_lost is not null)";
+	DEBUG("Trying query '" + query + "'.");
+	if (mysql_query(&handle, query.c_str()))
+	{
+		DEBUG("Query failed.");
+		throw e_database("Can not flush information about resources.", mysql_error(&handle));
+	} else {
+		DEBUG("Query successful.");
+	}
+}
+
+void c_database_mysql::_resource_touch (vector<t_id> ids)
+{
+	if (ids.empty()) return;
+	string ids_s;
+	for (vector<t_id>::const_iterator i = ids.begin(); i != ids.end(); i++)
+		ids_s += ((i == ids.begin()) ? "" : ",") + utils::ultostr(*i);
+	string query = string() +
+		"update t_filesearch_resource" +
+		"   set f_stamp_seen = now()" +
+		"     , f_stamp_lost = NULL"
+		" where f_filesearch_resource in (" + ids_s + ")";
+	DEBUG("Trying query '" + query + "'.");
+	if (mysql_query(&handle, query.c_str()))
+	{
+		DEBUG("Query failed.");
+		throw e_database("Can not update information about resource.", mysql_error(&handle));
+	} else {
+		DEBUG("Query successful.");
+	}
+}
+
+void c_database_mysql::_resource_flush (bool forced)
+{
+	if ((_resource_cache.size() >= options::database_cachesize_resource) || forced)
+	{
+		_resource_touch(_resource_cache);
+		_resource_cache.clear();
 	}
 }
 
 
 
-bool c_database_mysql::_select_file (t_id &id, c_request request, c_fileinfo fileinfo)
+bool c_database_mysql::_file_find (t_id &id, bool &changed, c_request request, c_fileinfo fileinfo)
 {
 	bool result = false;
 	string query = string() +
-		"select f_filesearch_file from t_filesearch_file, t_filesearch_resource" +
+		"select f_filesearch_file,t_filesearch_file.f_stamp_lost,f_container,f_size,f_ctime,f_mtime from t_filesearch_file, t_filesearch_resource" +
 		" where t_filesearch_file.f_filesearch_resource = t_filesearch_resource.f_filesearch_resource"
-		"   and t_filesearch_file.f_filesearch_resource = '" + escape(utils::ultostr(request.resourceid())) + "'" +
-		"   and f_path   = '" + escape(utils::path2string(fileinfo.path())) + "'" +
-		"   and f_name   = '" + escape(fileinfo.name()) + "'";
+		"   and t_filesearch_file.f_filesearch_resource = " + utils::ultostr(request.resourceid()) + "" +
+		"   and f_path   = '" + escape(utils::path2string(fileinfo.path())) + "'";
+	DEBUG("Trying query '" + query + "'.");
 	if (mysql_query(&handle, query.c_str()))
 	{
+		DEBUG("Query failed.");
 		throw e_database("Can not retrieve information about requested file.", mysql_error(&handle));
 	} else {
 		MYSQL_RES * set = mysql_store_result(&handle);
 		if (!set)
 		{
+			DEBUG("Query ok, but result set is NULL.");
 			throw e_database("File information retrieval failed with null set.", mysql_error(&handle));
 		}
+		DEBUG("Query successful.");
 		MYSQL_ROW row;
 		while ((row = mysql_fetch_row(set)))
 		{
 			id = utils::strtoul(row[0]?row[0]:"");
+			changed = (row[1] != NULL)
+				|| (row[2] == NULL) || (utils::strtoul(row[2]) != fileinfo.container())
+				|| (row[3] == NULL) || (utils::strtoul(row[3]) != fileinfo.size())
+				|| (row[4] == NULL) || (utils::strtoul(row[4]) != fileinfo.ctime())
+				|| (row[5] == NULL) || (utils::strtoul(row[5]) != fileinfo.mtime());
+			DEBUG("File id "+utils::ultostr(id)+" change="+utils::ultostr(changed)+".");
 			result = true;
 		}
 		mysql_free_result(set);
 	}
 	return result;
-	
 }
 
-bool c_database_mysql::_insert_file (t_id &id, c_request request, c_fileinfo fileinfo)
+bool c_database_mysql::_file_add (t_id &id, c_request request, c_fileinfo fileinfo)
 {
 	bool result = false;
 	string query = string() +
-		"insert into t_filesearch_file (f_filesearch_resource, f_path, f_name, f_stamp_found)" +
+		"insert into t_filesearch_file (f_filesearch_resource, f_path, f_name, f_stamp_found, f_stamp_seen, f_stamp_lost)" +
 		" values ('" + escape(utils::ultostr(request.resourceid())) + "'" +
 		"        ,'" + escape(utils::path2string(fileinfo.path()))  + "'" +
 		"        ,'" + escape(fileinfo.name()) + "'" +
-		"        , now())";
+		"        , now(), now(), NULL)";
+	DEBUG("Trying query '" + query + "'.");
 	if (mysql_query(&handle, query.c_str()))
 	{
+		DEBUG("Query failed.");
+		//???!!! what to do if can not insert record?
 	} else {
 		id = mysql_insert_id(&handle);
 		result = true;
+		DEBUG("Query successful. Inserted id is "+utils::ultostr(id));
 	}
 	return result;
 }
 
-void c_database_mysql::_update_file (t_id id, c_fileinfo fileinfo)
-{
-	string query = string() +
-		"update t_filesearch_file" +
-		"   set f_stamp_seen = now()" +
-		"     , f_stamp_lost = NULL" + 
-		"     , f_size       = '" + escape(utils::ultostr(fileinfo.size()))  + "'" +
-		"     , f_ctime      = from_unixtime(" + utils::ultostr(fileinfo.ctime()) + ")" +
-		"     , f_mtime      = from_unixtime(" + utils::ultostr(fileinfo.mtime()) + ")" +
-		" where f_filesearch_file = '" + escape(utils::ultostr(id)) + "'";
-	if (mysql_query(&handle, query.c_str()))
-	{
-		throw e_database("Can not update information about file.", mysql_error(&handle));
-	}
-}
-
-void c_database_mysql::_loose_files (c_request request)
+void c_database_mysql::_file_loose (c_request request)
 {
 	string query = string() +
 		"update t_filesearch_file" +
 		"   set f_stamp_lost = now()" +
-		" where f_stamp_seen < from_unixtime(" + utils::ultostr(f_startup) + ")" +
-		"   and f_filesearch_resource = '" + utils::ultostr(request.resourceid()) + "'";
+		" where f_filesearch_resource = '" + utils::ultostr(request.resourceid()) + "'" +
+		"   and f_stamp_seen < from_unixtime(" + utils::ultostr(f_startup) + ")" +
+		"   and f_stamp_lost is null";
+	DEBUG("Trying query '" + query + "'.");
 	if (mysql_query(&handle, query.c_str()))
 	{
+		DEBUG("Query failed.");
 		throw e_database("Can not flush information about files ("+query+")", mysql_error(&handle));
+	} else {
+		DEBUG("Query successful.");
+	}
+}
+
+void c_database_mysql::_file_touch (vector<t_id> ids)
+{
+	if (ids.empty()) return;
+	string ids_s;
+	for (vector<t_id>::const_iterator i = ids.begin(); i != ids.end(); i++)
+		ids_s += ((i == ids.begin()) ? "" : ",") + utils::ultostr(*i);
+	string query = string() +
+		"update t_filesearch_file" +
+		"   set f_stamp_seen = now()" +
+		"     , f_stamp_lost = NULL"
+		" where f_filesearch_file in (" + ids_s + ")";
+	DEBUG("Trying query '" + query + "'.");
+	if (mysql_query(&handle, query.c_str()))
+	{
+		DEBUG("Query failed.");
+		throw e_database("Can not update information about files.", mysql_error(&handle));
+	} else {
+		DEBUG("Query successful.");
+	}
+}
+
+void c_database_mysql::_file_flush (bool forced)
+{
+	if ((_file_cache.size() >= options::database_cachesize_file) || forced)
+	{
+		_file_touch(_file_cache);
+		_file_cache.clear();
+	}
+}
+
+void c_database_mysql::_file_change (t_id id, c_fileinfo fileinfo)
+{
+	string query = string() +
+		"update t_filesearch_file" +
+		"   set f_size       = " + utils::ultostr(fileinfo.size())  + "" +
+		"     , f_ctime      = from_unixtime(" + utils::ultostr(fileinfo.ctime()) + ")" +
+		"     , f_mtime      = from_unixtime(" + utils::ultostr(fileinfo.mtime()) + ")" +
+		" where f_filesearch_file = " + utils::ultostr(id) + "";
+	if (mysql_query(&handle, query.c_str()))
+	{
+		DEBUG("Query failed.");
+		throw e_database("Can not update information about file.", mysql_error(&handle));
+	} else {
+		DEBUG("Query successful.");
 	}
 }
 
@@ -345,25 +445,32 @@ t_id c_database_mysql::report_share (c_request request, string share)
 {
 	cerr << dec << "===SHARE " << share << " on " << utils::inet_ntoa(request.address()) << endl;
 	// гарантируем наличие нужного хоста с обновленными данными об обнаружении и получем его id
-	t_id resourceid;
-	if (!_select_resource(resourceid, request, share)) // пытаемся найти существующий
+	t_id resourceid; bool changed = false;
+	if (!_resource_find(resourceid, changed, request, share)) // пытаемся найти существующий
 	{
-		if (!_insert_resource(resourceid, request, share)) // если не найден, пытаемся создать его
+		if (!_resource_add(resourceid, request, share)) // если не найден, пытаемся создать его
 		{
-			if(!_select_resource(resourceid, request, share)) // если не создался, предполагаем что он успел создаться параллельно, и пытаемся найти снова
+			if(!_resource_find(resourceid, changed, request, share)) // если не создался, предполагаем что он успел создаться параллельно, и пытаемся найти снова
 			{
 				throw e_database("Can not find or create resource record."); // финиш. не существует и не создается.
 			}
-		}
+		} else changed = true;
 	}
-	_update_resource(resourceid);
+//???	if (changed)
+//	{
+//		_resource_update(resourceid);
+//	}
+	_resource_cache.push_back(resourceid);
+	_resource_flush(false);
 	return resourceid;
 }
 
 void c_database_mysql::flush_shares (c_request request)
 {
 	cerr << "===SHARE FLUSH on " << utils::inet_ntoa(request.address()) << endl;
-	_loose_resources(request);
+	_resource_flush(true);
+	_resource_loose(request);
+	_resource_loosf(request);
 }
 
 
@@ -372,18 +479,23 @@ t_id c_database_mysql::report_file (c_request request, c_fileinfo fileinfo)
 {
 	cerr << dec << (fileinfo.container()?"---dir  ":"---file ") << fileinfo.name() << " on " << utils::inet_ntoa(request.address()) << endl;
 	// гарантируем создание записи о файле или находим существующую
-	t_id fileid;
-	if (!_select_file(fileid, request, fileinfo)) // пытаемся найти существующий
+	t_id fileid; bool changed = false;
+	if (!_file_find(fileid, changed, request, fileinfo)) // пытаемся найти существующий
 	{
-		if (!_insert_file(fileid, request, fileinfo)) // если не найден, пытаемся создать его
+		if (!_file_add(fileid, request, fileinfo)) // если не найден, пытаемся создать его
 		{
-			if(!_select_file(fileid, request, fileinfo)) // если не создался, предполагаем что он успел создаться параллельно, и пытаемся найти снова
+			if(!_file_find(fileid, changed, request, fileinfo)) // если не создался, предполагаем что он успел создаться параллельно, и пытаемся найти снова
 			{
 				throw e_database("Can not find or create file record."); // финиш. не существует и не создается.
 			}
-		}
+		} else changed = true;
 	}
-	_update_file(fileid, fileinfo);
+	if (changed)
+	{
+		_file_change(fileid, fileinfo);
+	}
+	_file_cache.push_back(fileid);
+	_file_flush(false);
 	return fileid;
 }
 
@@ -391,5 +503,6 @@ t_id c_database_mysql::report_file (c_request request, c_fileinfo fileinfo)
 void c_database_mysql::flush_files (c_request request)
 {
 	cerr << "--- FILE FLUSH resourceid=" << request.resourceid() << endl;
-	_loose_files(request);
+	_file_flush(true);
+	_file_loose(request);
 }

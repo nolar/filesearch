@@ -41,9 +41,9 @@ bool thread_wrap (string command, c_request request,
 {
 	// creating fd for stdin & stdout of scan process
 	DEBUG("Creating pipes to scanner process for ip='"+utils::inet_ntoa(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
-	int ifd[2]; if (pipe(ifd) == -1) throw e_basic("can not create in pipe!!!");//e_basic???!!!
+	int ifd[2]; if (pipe(ifd) == -1) throw e_basic("can not create in pipe!!!", errno, strerror(errno));//e_basic???!!!
 	DEBUG("Created pipe "+utils::ultostr(ifd[0])+"<->"+utils::ultostr(ifd[1])+" for task stream of scanner process for ip='"+utils::inet_ntoa(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
-	int ofd[2]; if (pipe(ofd) == -1) throw e_basic("can not create out pipe!!!");//e_basic???!!!
+	int ofd[2]; if (pipe(ofd) == -1) throw e_basic("can not create out pipe!!!", errno, strerror(errno));//e_basic???!!!
 	DEBUG("Created pipe "+utils::ultostr(ofd[0])+"<->"+utils::ultostr(ofd[1])+" for data stream of scanner process for ip='"+utils::inet_ntoa(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
 
 	// executing scan process with substituted fds
@@ -52,7 +52,7 @@ bool thread_wrap (string command, c_request request,
 	vector<string> env;
 	fds[options::fd_task] = ifd[0];
 	fds[options::fd_data] = ofd[1];
-	fds[options::fd_debug] = options::fd_null;
+//???	fds[options::fd_debug] = options::fd_null;
 	arg.push_back(utils::inet_ntoa(request.address()));
 	arg.push_back(request.share());
 	pid_t pid = utils::exec(command.c_str(), arg, env, fds);
@@ -76,7 +76,7 @@ bool thread_wrap (string command, c_request request,
 
 	// reading and handling output of scanner process
 	timeval timer;
-	bool haveanydata = false;
+	bool datacomplete = false;
 	do {
 		DEBUG("Getting reply from scanner process "+utils::ultostr(pid)+".");
 		timer.tv_sec = request.timeout(); timer.tv_usec = 0;
@@ -87,10 +87,10 @@ bool thread_wrap (string command, c_request request,
 		if (!status && !action.empty())
 		{
 			//
-			if (action_start && !haveanydata)
+			if (action_start && !datacomplete)
 			{
 				action_start(request);
-				haveanydata = true;
+				datacomplete = true;
 			}
 			//
 			if (action_resource && action == options::action_code_for_resource && data.size() >= 1)
@@ -134,9 +134,14 @@ bool thread_wrap (string command, c_request request,
 	// closing process
 	DEBUG("Waiting for scanner process "+utils::ultostr(pid)+" to finish.");
 	int wstat;
-	kill(pid, SIGKILL);
+	DEBUG("Sending signal to pid "+utils::ultostr(pid)+".");
+	int c = kill(pid, SIGKILL);
+	DEBUG("Sent signal to pid "+utils::ultostr(pid)+" code "+utils::ultostr(c)+":"+utils::ultostr(errno)+":"+strerror(errno)+".");
+	bool counter = 0;
 	while (utils::wait_hang(&wstat) > 0)
 	{
+		datacomplete = datacomplete && WIFEXITED(wstat) && !WEXITSTATUS(wstat);
+		counter++;
 		if (WIFEXITED  (wstat) && !WEXITSTATUS(wstat)) DEBUG("Scanner process "+utils::ultostr(pid)+" exited successfully."); else
 		if (WIFEXITED  (wstat)                       ) DEBUG("Scanner process "+utils::ultostr(pid)+" exited with code "+utils::ultostr(WEXITSTATUS(wstat))+"."); else
 		if (WIFSIGNALED(wstat) &&  WCOREDUMP(wstat)  ) DEBUG("Scanner process "+utils::ultostr(pid)+" core dumped on signal "+utils::ultostr(WTERMSIG(wstat))+"."); else
@@ -144,5 +149,6 @@ bool thread_wrap (string command, c_request request,
 		if (WIFSTOPPED (wstat)                       ) DEBUG("Scanner process "+utils::ultostr(pid)+" stopped on signal "+utils::ultostr(WSTOPSIG(wstat))+"."); else
 							       DEBUG("Scanner process "+utils::ultostr(pid)+" exited with wstat "+utils::ultostr(wstat)+".");
 	}
-	return haveanydata;
+	DEBUG("KILLING FINISHED counter="+utils::ultostr(counter)+" lastcode="+utils::ultostr(errno)+":"+strerror(errno)+".");
+	return datacomplete;
 }

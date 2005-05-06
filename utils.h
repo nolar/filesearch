@@ -23,8 +23,8 @@ typedef int t_signal;
 
 typedef enum{stream_status_ok, stream_status_eof, stream_status_timeout, stream_status_nofd, stream_status_error}  t_stream_status;
 
-//#define DEBUG(s) do { utils::debug(string()+s);         } while (0)
-#define DEBUG(s)
+#define DEBUG(s) do { utils::debug(string()+s);         } while (0)
+//#define DEBUG(s)
 #define LOG(s)   do { utils::log(string()+s); DEBUG(s); } while (0)
 
 class utils
@@ -71,6 +71,8 @@ public:
 	static void fd_move (int oldfd, int newfd);
 	static void fd_copy (map<int,int> fds);
 	static void fd_move (map<int,int> fds);
+	static int  fd_flags (int fd);
+	static void fd_flags (int fd, int flags);
 
 	// signal handling
 	static void signal_pause   ();

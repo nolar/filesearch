@@ -78,7 +78,7 @@ int main (int argc, char ** argv, char ** env) {
 		// retrieving options from database config table
 		//!!!
 		// creating fork manager
-		forker = new c_forker(5); //!!! max_children should be configurable option
+		forker = new c_forker(options::default_children); //!!! max_children should be configurable option
 		// retrieving list of address requests
 		DEBUG("Fetching requests from database.");
 		c_requests requests = database->fetch_requests();
