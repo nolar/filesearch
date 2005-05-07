@@ -3,31 +3,30 @@
 
 #include <string>
 #include <vector>
-#include "utils.h"
-
-using namespace std;
+#include "config.h"
+#include "typedefs.h"
 
 class c_fileinfo {
 private:
-	c_path f_path;
-	bool f_container;
-	size_t f_size;
-	time_t f_ctime;
-	time_t f_mtime;
+	t_path f_path;
+	t_flag f_container;
+	t_size f_size;
+	t_time f_ctime;
+	t_time f_mtime;
 protected:
 public:
 	c_fileinfo ();
-	c_fileinfo (c_path a_path, bool a_container, size_t a_size, time_t a_ctime, time_t a_mtime);
-	c_fileinfo (string a_path, string a_container, string a_size, string a_ctime, string a_mtime);
+	c_fileinfo (t_path      a_path, t_flag      a_container, t_size      a_size, t_time      a_ctime, t_time      a_mtime);
+	c_fileinfo (std::string a_path, std::string a_container, std::string a_size, std::string a_ctime, std::string a_mtime);
 
 	c_fileinfo & operator = (const c_fileinfo & right);
 
-	c_path path ();
-	string name ();
-	bool container ();
-	size_t size ();
-	time_t ctime ();
-	time_t mtime ();
+	t_path path ();
+	std::string name ();
+	t_flag container ();
+	t_size size ();
+	t_time ctime ();
+	t_time mtime ();
 };
 
 #endif

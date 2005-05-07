@@ -13,35 +13,36 @@
 #include <iostream>
 #include <iomanip>
 #include <string>
-#include <map>
 #include <vector>
 #include <stack>
 #include <libsmbclient.h>
 #include <sys/time.h>
-		    
+#include "config.h"
+#include "typedefs.h"		    
 #include "e_samba.h"
-#include "utils.h"
 #include "options.h"
+#include "io.h"
+#include "convert.h"
 
-#define GUEST "guest"
-
-using namespace std;
-
-string address;
-string rootpath_s;
-string username;
-string password;
-string workgroup;
-string selfname;
-string timeout_s;
-string depth_s;
-c_path rootpath;
-unsigned int timeout;
-unsigned int depth;
+std::string address_s;
+std::string rootpath_s;
+std::string username;
+std::string password;
+std::string workgroup;
+std::string selfname;
+std::string timeout_s;
+std::string depth_s;
+t_ipaddr address;
+t_path rootpath;
+t_timeout timeout;
+t_depth   depth;
 
 SMBCCTX * ctx = NULL;
-stack< pair<c_path,unsigned> > paths;
-itimerval timer;
+
+typedef std::stack< std::pair<t_path,t_depth> >  t_pathstack;
+t_pathstack pathstack;
+
+
 
 void auth_fn (const char *server, const char *share, char *_workgroup, int wgmaxlen, char *_username, int unmaxlen, char *_password, int pwmaxlen)
 {
@@ -50,67 +51,48 @@ void auth_fn (const char *server, const char *share, char *_workgroup, int wgmax
 	strncpy(_password ,  password.c_str(), pwmaxlen-1);
 }
 
-void timer_touch ()
+
+
+std::vector<std::string> formate_resource (std::string path)
 {
-	timer.it_value = timer.it_interval;
-	if (timer.it_interval.tv_sec || timer.it_interval.tv_usec)
-	{
-//		if (setitimer(ITIMER_REAL, &timer, NULL) != 0)
-//		{
-//			throw e_basic("Can not set timer.", errno, strerror(errno)); //!!! e_basic?
-//		}
-	}
-}
-
-void timer_signal (int)
-{
-//!!!	log it thread-safe way
-//!!!	cerr << "Timed out. Exiting." << endl;
-
-//	_exit(2);
-}
-
-
-vector<string> formate_resource (string path)
-{
-	vector<string> result;
+	std::vector<std::string> result;
 	result.push_back(options::action_code_for_resource);
 	result.push_back(path.empty()?"/":path);
 	return result;
 }
 
-vector<string> formate_dir (string path, struct stat st)
+std::vector<std::string> formate_dir (std::string path, struct stat st)
 {
-	vector<string> result;
+	std::vector<std::string> result;
 	result.push_back(options::action_code_for_dir);
 	result.push_back(path.empty()?"/":path);
-	result.push_back(utils::ultostr(st.st_ctime));
-	result.push_back(utils::ultostr(st.st_mtime));
+	result.push_back(convert::time2system(st.st_ctime));
+	result.push_back(convert::time2system(st.st_mtime));
 	return result;
 }
 
-vector<string> formate_file (string path, struct stat st)
+std::vector<std::string> formate_file (std::string path, struct stat st)
 {
-	vector<string> result;
+	std::vector<std::string> result;
 	result.push_back(options::action_code_for_file);
 	result.push_back(path.empty()?"/":path);
-	result.push_back(utils::ultostr(st.st_size));
-	result.push_back(utils::ultostr(st.st_ctime));
-	result.push_back(utils::ultostr(st.st_mtime));
+	result.push_back(convert::size2system(st.st_size ));
+	result.push_back(convert::time2system(st.st_ctime));
+	result.push_back(convert::time2system(st.st_mtime));
 	return result;
 }
 
-vector<string> formate_enter (string path)
+std::vector<std::string> formate_enter (std::string path)
 {
-	vector<string> result;
+	std::vector<std::string> result;
 	result.push_back(options::action_code_for_enter);
 	result.push_back(path.empty()?"/":path);
 	return result;
 }
 
-vector<string> formate_leave (string path)
+std::vector<std::string> formate_leave (std::string path)
 {
-	vector<string> result;
+	std::vector<std::string> result;
 	result.push_back(options::action_code_for_leave);
 	result.push_back(path.empty()?"/":path);
 	return result;
@@ -124,34 +106,28 @@ int main(int argc, char ** argv, char ** env) {
 		DEBUG("Getting initial parameters for scanning.");
 		t_stream_status status;
 		timeval timer_params;
-		timer_params.tv_sec  = options::timeout_params_sec ;
+		timer_params.tv_sec  = options::timeout_params_sec;
 		timer_params.tv_usec = options::timeout_params_usec;
-		vector<string> data, params = utils::readblock(options::fd_task, &timer_params, &status, options::terminator, true, true, 8, 8);
-		if (params.size() < 8) throw e_basic("Can not read required parameters.");
+		std::vector<std::string> data, params = io::readblock(io::fd_task, &timer_params, &status, options::terminator, true, true, 8, 8);
+		if (params.size() < 8) throw e_io("Can not read required number of parameters (8).");
 		DEBUG("Successfully got the following parameters for scanning:");
-		address    = params[0];
-		rootpath_s = params[1]; rootpath = utils::string2path(rootpath_s);
-		username   = params[2]; if (username.empty()) username = GUEST;
+		address_s  = params[0]; address = convert::str2ipaddr(address_s);
+		rootpath_s = params[1]; rootpath = convert::str2path(rootpath_s);
+		username   = params[2]; if (username.empty()) username = options::smb_guestusername;
 		password   = params[3];
 		workgroup  = params[4];
 		selfname   = params[5];
-		timeout_s  = params[6]; timeout = utils::strtoul(timeout_s) * 1000;
-		depth_s    = params[7]; depth   = utils::strtoul(depth_s  );
-		DEBUG("address='"+address+"'");
-		DEBUG("rootpath='"+utils::path2string(rootpath)+"'");
-		DEBUG("username='"+username+"'");
-		DEBUG("password='"+password+"'");
-		DEBUG("workgroup='"+workgroup+"'");
-		DEBUG("selfname='"+selfname+"'");
-		DEBUG("timeout="+utils::ultostr(timeout)+"msec");
-		DEBUG("depth="+utils::ultostr(depth));
+		timeout_s  = params[6]; timeout = convert::str2timeout(timeout_s) * 1000;
+		depth_s    = params[7]; depth   = convert::str2depth  (depth_s  );
+		DEBUG("address='"  +convert::ipaddr2print(address) +"'"   );
+		DEBUG("rootpath='" +convert::path2print(rootpath)  +"'"   );
+		DEBUG("username='" +username                       +"'"   );
+		DEBUG("password='" +password                       +"'"   );
+		DEBUG("workgroup='"+workgroup                      +"'"   );
+		DEBUG("selfname='" +selfname                       +"'"   );
+		DEBUG("timeout="   +convert::timeout2print(timeout)+"msec");
+		DEBUG("depth="     +convert::depth2print(depth)           );
 		DEBUG("End of parameters list.");
-		// initializing timer for forced exiting on timeout
-//!!!		utils::signal_catch(SIGALRM, timer_signal);
-//!!!		utils::signal_unblock(SIGALRM);
-		timer.it_interval.tv_sec  = timeout / 1000 + 1;
-		timer.it_interval.tv_usec = 0;
-		timer_touch();
 		// initializing smbclient
 		DEBUG("Creating smbc context.");
 		ctx = smbc_new_context();
@@ -173,43 +149,39 @@ int main(int argc, char ** argv, char ** env) {
 		}
 		DEBUG("Initialized smbc context.");
 		ctx->timeout = timeout;
-		// recursive scan
-		pair<c_path,unsigned> t;
+		// putting initial path to stack
+		t_pathstack::value_type t;
 		t.second = 1;
-		paths.push(t);
-		string rootpathstr = string("smb://") + address;
-		for (c_path::iterator i = rootpath.begin(); i != rootpath.end(); i++)
-			rootpathstr += "/" + *i;
+		pathstack.push(t);
+		std::string rootpathstr = std::string("smb://") + convert::ipaddr2print(address) + (rootpath.empty()?"":"/") + convert::path2system(rootpath);
 		//
 		DEBUG("Starting recursive scan in '"+rootpathstr+"'.");
-		while (!paths.empty())
+		while (!pathstack.empty())
 		{
-			timer_touch();
 			// getting path from stack
-			c_path currpath = paths.top().first;
-			unsigned level = paths.top().second;
-			paths.pop();
-			string currpathstr; for (c_path::iterator i = currpath.begin(); i != currpath.end(); i++) currpathstr += "/" + *i;
-			string openpathstr = rootpathstr + currpathstr;
+			t_path currpath = pathstack.top().first;
+			t_depth level = pathstack.top().second;
+			pathstack.pop();
+			std::string currpathstr = (currpath.empty()?"":"/") + convert::path2system(currpath);
+			std::string openpathstr = rootpathstr + currpathstr;
 			//
 			DEBUG("Opening path '"+openpathstr+"' for directory listing.");
 			SMBCFILE * dir = ctx->opendir(ctx, openpathstr.c_str());
 			if (!dir)
 			{
-				LOG("Could not open path '"+openpathstr+"': code "+utils::ultostr(errno)+" ("+strerror(errno)+")");
+				LOG("Could not open path '"+openpathstr+"': "+strerror(errno));
 			} else {
 				DEBUG("Path '"+openpathstr+"' opened.");
-				utils::writeblock(options::fd_data, NULL, NULL, options::terminator, formate_enter(currpathstr));
+				io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_enter(currpathstr));
 				smbc_dirent * dirent;
 				DEBUG("Listing its entries.");
-				while ((dirent = ctx->readdir(ctx, dir)) != NULL)
+				while (level <= depth && (dirent = ctx->readdir(ctx, dir)) != NULL)
 				{
-					timer_touch();
-					string name = dirent->name;
+					std::string name = dirent->name;
 					if ((name != "..") && (name != "."))
 					{
 						DEBUG("Got entry '"+name+"'.");
-						string path = openpathstr + "/" + name;
+						std::string path = openpathstr + "/" + name;
 						bool container = (dirent->smbc_type == SMBC_DIR       ) ||
 								 (dirent->smbc_type == SMBC_FILE_SHARE) ||
 								 (dirent->smbc_type == SMBC_SERVER    ) ||
@@ -224,30 +196,30 @@ int main(int argc, char ** argv, char ** env) {
 							int stcode = ctx->stat(ctx, path.c_str(), &st);
 							if (stcode == -1)
 							{
-								DEBUG("Stat failed with code "+utils::ultostr(stcode)+": "+strerror(errno));
+								DEBUG("Stat failed: "+strerror(errno));
 								memset(&st, 0, sizeof(st));
 							} else {
 								DEBUG("Stat successfull.");
 							}
 							if (container)
-							utils::writeblock(options::fd_data, NULL, NULL, options::terminator, formate_dir (currpathstr + "/" + name, st));
+							io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_dir (currpathstr + "/" + name, st));
 							else
-							utils::writeblock(options::fd_data, NULL, NULL, options::terminator, formate_file(currpathstr + "/" + name, st));
+							io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_file(currpathstr + "/" + name, st));
 						} else {
-							utils::writeblock(options::fd_data, NULL, NULL, options::terminator, formate_resource(currpathstr + "/" + name));
+							io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_resource(currpathstr + "/" + name));
 						}
-						if (container && ((depth <= 0) || (level < depth)))
+						if (container && level < depth)
 						{
-							DEBUG("Putting recursible item '"+openpathstr+"/"+name+"' for future scanning.");
-							pair<c_path,unsigned> t;
+							DEBUG("Putting recursible item '"+path+"' for future scanning.");
+							t_pathstack::value_type t;
 							t.first = currpath; t.first.push_back(name);
 							t.second = level+1;
-							paths.push(t);
+							pathstack.push(t);
 						}
 						DEBUG("Work with entry finished.");
 					}
 				}
-				utils::writeblock(options::fd_data, NULL, NULL, options::terminator, formate_leave(currpathstr));
+				io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_leave(currpathstr));
 				DEBUG("Closing dir '"+openpathstr+"'.");
 				ctx->closedir(ctx, dir);
 				DEBUG("Closed.");
@@ -257,9 +229,6 @@ int main(int argc, char ** argv, char ** env) {
 		DEBUG("Freeing smbc context after work.");
 		smbc_free_context(ctx, false); ctx = NULL;
 		DEBUG("Freed.");
-		//
-		utils::signal_block(SIGALRM);
-		utils::signal_uncatch(SIGALRM);
 	}
 	catch (e_basic &e)
 	{

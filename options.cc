@@ -1,8 +1,8 @@
 #include "options.h"
 
-unsigned options::default_children = 20;
-unsigned options::default_timeout = 1;
-unsigned options::default_depth = 0;
+unsigned  options::default_children = 10;
+t_timeout options::default_timeout = 1;
+t_depth   options::default_depth   = 1000;
 
 string options::command_smb = "./filesearch-smb";
 
@@ -17,14 +17,17 @@ string options::action_code_for_file     = "+file";
 string options::action_code_for_enter    = ">enter";
 string options::action_code_for_leave    = "<leave";
 
-int options::fd_task  = 0;
-int options::fd_data  = 3;
-int options::fd_log   = 2;
-int options::fd_debug = 1;
-int options::fd_null  = -1;
+//int options::fd_task  = 0;
+//int options::fd_data  = 3;
+//int options::fd_log   = 2;
+//int options::fd_debug = 1;
+//int options::fd_null  = -1;
 
-char * options::log_time_format = "%Y-%m-%d %H:%M:%S";
-int    options::log_pid_length = 5;
+//char * options::log_time_format = "%Y-%m-%d %H:%M:%S";
+//int    options::log_pid_length = 5;
 
-vector<t_id>::size_type options::database_cachesize_resource = 10;
-vector<t_id>::size_type options::database_cachesize_file     = 10;
+vector<t_sqlid>::size_type options::database_cachesize_resource = 10;
+vector<t_sqlid>::size_type options::database_cachesize_file     = 10;
+
+
+std::string options::smb_guestusername = "GUEST";

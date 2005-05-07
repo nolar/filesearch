@@ -8,8 +8,6 @@
  * (a) Sergei Vasilyev aka nolar 2005
  */
 
-#include "e_database.h"
-#include "database_mysql.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <iostream>
@@ -18,19 +16,23 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <fcntl.h>
-
-#include "fdstream"
+#include "config.h"
+#include "typedefs.h"
+#include "e_database.h"
+#include "database_mysql.h"
 #include "forker.h"
 #include "thread.h"
 #include "thread_smb.h"
 #include "options.h"
+#include "io.h"
+#include "convert.h"
 
 c_database * database = NULL;
 c_forker * forker = NULL;
 
 inline void scan_address (c_request request)
 {
-	DEBUG("Checking status of ip='"+utils::inet_ntoa(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
+	DEBUG("Checking status of ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
 	// проверяем, не была ли такая шара с такого адреса уже найдена
 	bool already = database->status_check(request);
 	// если таковой еще нет, то сканируем эту шару на этом компьютере
@@ -40,23 +42,23 @@ inline void scan_address (c_request request)
 		switch (request.proto())
 		{
 			case proto_smb:
-				DEBUG("Creating (smb) scanner for ip='"+utils::inet_ntoa(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
+				DEBUG("Creating (smb) scanner for ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
 				thread_smb__request = request;
-				forker->fork(thread_smb, thread_init, thread_free);
+				forker->fork(thread_smb, thread_init, thread_free, thread_catch);
 				break;
 			case proto_ftp:
-				DEBUG("Creating (ftp) scanner for ip='"+utils::inet_ntoa(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
+				DEBUG("Creating (ftp) scanner for ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
 				break;
 			case proto_http:
-				DEBUG("Creating (http) scanner for ip='"+utils::inet_ntoa(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
+				DEBUG("Creating (http) scanner for ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
 				break;
 			default:
 			case proto_unknown:
-				DEBUG("Unknown protocol in request for ip='"+utils::inet_ntoa(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
+				DEBUG("Unknown protocol in request for ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
 				break;
 		}
 	} else {
-		DEBUG("Request for ip='"+utils::inet_ntoa(request.address())+"',share='"+request.share()+"',username='"+request.username()+"' already scanned. Skipping.");
+		DEBUG("Request for ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"' already scanned. Skipping.");
 	}
 }
 
@@ -69,7 +71,7 @@ int main (int argc, char ** argv, char ** env) {
 		DEBUG("Main filesearcher started.");
 		// получение параметров вызова программы и занесение их в переменные
 		//!!!
-		options::fd_null = open("/dev/null", O_WRONLY);
+		io::fd_null = open(io::fd_null_path, O_RDWR);
 		// connecting main thread to database
 		DEBUG("Connecting to database.");
 		database = new c_database_mysql(getpid(), time(NULL), "", "filesearch", "filesearch", "filesearch", 0, "", 0);
@@ -82,7 +84,7 @@ int main (int argc, char ** argv, char ** env) {
 		// retrieving list of address requests
 		DEBUG("Fetching requests from database.");
 		c_requests requests = database->fetch_requests();
-		DEBUG("Fetched "+utils::ultostr(requests.size())+" requests.");
+		DEBUG("Fetched "+convert::ul2str(requests.size())+" requests.");
 		c_requests::iterator request;
 		for (request = requests.begin(); request != requests.end(); request++)
 		{
@@ -96,20 +98,15 @@ int main (int argc, char ** argv, char ** env) {
 		}
 		// freeing engines resources
 	}
-	catch (e_address &e)
-	{
-		LOG("Exception in address convertation: "+e.what());
-		exitcode = 4;
-	}
-	catch (e_database &e)
-	{
-		LOG("Exception in database: "+e.what());
-		exitcode = 3;
-	}
 	catch (exception &e)
 	{
 		LOG("Exception: "+e.what());
-		exitcode = 2;
+		exitcode = 1;
+	}
+	catch (e_basic &e)
+	{
+		LOG("Exception: "+e.what());
+		exitcode = 1;
 	}
 	catch (...)
 	{
@@ -120,7 +117,7 @@ int main (int argc, char ** argv, char ** env) {
 	DEBUG("Waiting for children.");
 	while (!forker->empty())
 	{
-		utils::signal_pause();
+		c_forker::signal_pause();
 	}
 	DEBUG("All children exited.");
 	// freeing database
@@ -132,6 +129,6 @@ int main (int argc, char ** argv, char ** env) {
 		delete database; database = NULL;
 		DEBUG("Closed database connection.");
 	}
-	DEBUG("Main filesearcher exited with code "+utils::ultostr(exitcode)+".");
+	DEBUG("Main filesearcher exited: "+convert::pstatus2print(exitcode)+".");
 	return exitcode;
 }

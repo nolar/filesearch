@@ -3,9 +3,9 @@
 
 #include <string>
 #include <vector>
-#include "utils.h"
+#include "config.h"
+#include "typedefs.h"
 #include "request.h"
-#include "fileinfo.h"
 
 using namespace std;
 

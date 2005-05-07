@@ -1,13 +1,11 @@
 #include "fileinfo.h"
-//!!!#include <iostream>
-//!!!#include <iomanip>
-#include "options.h"
+#include "convert.h"
 
 c_fileinfo::c_fileinfo ()
 {
 }
 
-c_fileinfo::c_fileinfo (c_path a_path, bool a_container, size_t a_size, time_t a_ctime, time_t a_mtime)
+c_fileinfo::c_fileinfo (t_path a_path, t_flag a_container, t_size a_size, t_time a_ctime, t_time a_mtime)
 {
 	f_path      = a_path;
 	f_container = a_container;
@@ -16,13 +14,13 @@ c_fileinfo::c_fileinfo (c_path a_path, bool a_container, size_t a_size, time_t a
 	f_mtime     = a_mtime;
 }
 
-c_fileinfo::c_fileinfo (string a_path, string a_container, string a_size, string a_ctime, string a_mtime)
+c_fileinfo::c_fileinfo (std::string a_path, std::string a_container, std::string a_size, std::string a_ctime, std::string a_mtime)
 {
-	f_path      = utils::string2path(a_path);
-	f_container = (a_container=="1");
-	f_size      = utils::strtoul(a_size);
-	f_ctime     = utils::strtoul(a_ctime);
-	f_mtime     = utils::strtoul(a_mtime);
+	f_path      = convert::str2path(a_path);
+	f_container = convert::str2flag(a_container);
+	f_size      = convert::str2size(a_size);
+	f_ctime     = convert::str2time(a_ctime);
+	f_mtime     = convert::str2time(a_mtime);
 }
 
 c_fileinfo & c_fileinfo::operator= (const c_fileinfo & right)
@@ -37,32 +35,32 @@ c_fileinfo & c_fileinfo::operator= (const c_fileinfo & right)
 
 
 
-c_path c_fileinfo::path ()
+t_path c_fileinfo::path ()
 {
 	return f_path;
 }
 
-string c_fileinfo::name ()
+std::string c_fileinfo::name ()
 {
-	return f_path.empty() ? "" : f_path[f_path.size()-1];
+	return f_path.empty() ? std::string() : f_path[f_path.size()-1];
 }
 
-bool c_fileinfo::container ()
+t_flag c_fileinfo::container ()
 {
 	return f_container;
 }
 
-size_t c_fileinfo::size ()
+t_size c_fileinfo::size ()
 {
 	return f_size;
 }
 
-time_t c_fileinfo::ctime ()
+t_time c_fileinfo::ctime ()
 {
 	return f_ctime;
 }
 
-time_t c_fileinfo::mtime ()
+t_time c_fileinfo::mtime ()
 {
 	return f_mtime;
 }

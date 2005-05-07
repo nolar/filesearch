@@ -1,7 +1,16 @@
 #include "request.h"
-//!!!#include <iostream>
-//!!!#include <iomanip>
+#include "convert.h"
 #include "options.h"
+
+
+const t_ipaddr c_request::address_max  = (t_ipaddr) 0xFFFFFFFF;
+const t_ipaddr c_request::address_min  = (t_ipaddr) 0;
+const t_ipaddr c_request::address_self = (t_ipaddr) 0x7F000001;
+const t_ipmask c_request::netmask_min  = (t_ipmask) 0;
+const t_ipmask c_request::netmask_max  = (t_ipmask) 32;
+const t_ipmask c_request::netmask_self = (t_ipaddr) 32;
+
+
 
 c_request::c_request ()
 {
@@ -25,19 +34,19 @@ c_request::c_request ()
 
 c_request::c_request (string a_id, string  a_proto, string a_isnetwork, string   a_address, string   a_netmask, string   a_port, string a_share, string a_username, string a_password, string a_workgroup, string a_selfname, string   a_timeout, string  a_depth)
 {
-	f_id        = (t_id) utils::strtoul(a_id);
-	f_proto     = (t_proto) utils::strtoul(a_proto);
-	f_isnetwork = (a_isnetwork=="1");
-	f_address   = utils::strtoul(a_address);
-	f_netmask   = utils::strtoul(a_netmask);
-	f_port      = utils::strtoul(a_port);
+	f_id        = convert::str2sqlid(a_id);
+	f_proto     = convert::str2proto(a_proto, proto_unknown);
+	f_isnetwork = convert::str2flag(a_isnetwork, false);
+	f_address   = convert::str2ipaddr(a_address, address_self);
+	f_netmask   = convert::str2ipmask(a_netmask, netmask_self);
+	f_port      = convert::str2ipport(a_port, 0);
 	f_share     = a_share;
 	f_username  = a_username;
 	f_password  = a_password;
 	f_workgroup = a_workgroup;
 	f_selfname  = a_selfname;
-	f_timeout   = utils::strtoul(a_timeout);
-	f_depth     = utils::strtoul(a_depth);
+	f_timeout   = convert::str2timeout(a_timeout, options::default_timeout);
+	f_depth     = convert::str2depth  (a_depth  , options::default_depth  );
 }
 
 c_request & c_request::operator= (const c_request & right)
@@ -59,7 +68,7 @@ c_request & c_request::operator= (const c_request & right)
 }
 
 
-t_id c_request::id ()
+t_sqlid c_request::id ()
 {
 	return f_id;
 }
@@ -142,17 +151,17 @@ string c_request::selfname ()
 	return f_selfname;
 }
 
-unsigned c_request::timeout ()
+t_timeout c_request::timeout ()
 {
-	return f_timeout ? f_timeout : options::default_timeout;
+	return f_timeout;
 }
 
-unsigned c_request::depth ()
+t_depth c_request::depth ()
 {
-	return f_depth ? f_depth : options::default_depth;
+	return f_depth;
 }
 
-void c_request::depth (unsigned value)
+void c_request::depth (t_depth value)
 {
 	f_depth = value;
 }
@@ -160,12 +169,12 @@ void c_request::depth (unsigned value)
 
 
 
-t_id c_request::resourceid ()
+t_sqlid c_request::resourceid ()
 {
 	return f_resourceid;
 }
 
-void c_request::resourceid (t_id id)
+void c_request::resourceid (t_sqlid id)
 {
 	f_resourceid = id;
 }

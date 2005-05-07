@@ -1,5 +1,3 @@
-#include "e_database.h"
-#include "database.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <iostream>
@@ -7,20 +5,23 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <signal.h>
-#include "utils.h"
-#include "thread.h"
 #include "thread_smb.h"
+#include "io.h"
+#include "thread.h"
 #include "options.h"
+#include "database.h"
+#include "e_database.h"
+#include "convert.h"
 
 extern c_database * database;
 
 //
-vector< pair<string,t_id> > thread_smb__shares;
+vector< pair<string,t_sqlid> > thread_smb__shares;
 
 
-void thread_smb__action_resource (c_request request, c_path path)
+void thread_smb__action_resource (c_request request, t_path path)
 {
-	pair<string,t_id> item;
+	pair<string,t_sqlid> item;
 	item.first  = path.empty()?string():path[path.size()-1];
 	item.second = database->report_share(request, item.first);
 	thread_smb__shares.push_back(item);
@@ -59,7 +60,7 @@ int thread_smb ()
 	thread_smb__shares.clear();
 	if (request.share().empty())
 	{
-		DEBUG("(smb) Scanning for shares on ip='"+utils::inet_ntoa(request.address())+"',username='"+request.username()+"'.");
+		DEBUG("(smb) Scanning for shares on ip='"+convert::ipaddr2print(request.address())+"',username='"+request.username()+"'.");
 		c_request sharerequest = request;
 		sharerequest.depth(1);
 		if (thread_wrap(options::command_smb, sharerequest,
@@ -70,19 +71,19 @@ int thread_smb ()
 			NULL,
 			thread_smb__action_start))
 		{
-			DEBUG("(smb) Flushing shares on ip='"+utils::inet_ntoa(request.address())+"',username='"+request.username()+"'.");
+			DEBUG("(smb) Flushing shares on ip='"+convert::ipaddr2print(request.address())+"',username='"+request.username()+"'.");
 			database->flush_shares(sharerequest);
 		}
-		DEBUG("(smb) Scanned for shares on ip='"+utils::inet_ntoa(request.address())+"',username='"+request.username()+"'. Got "+utils::ultostr(thread_smb__shares.size())+" shares.");
+		DEBUG("(smb) Scanned for shares on ip='"+convert::ipaddr2print(request.address())+"',username='"+request.username()+"'. Got "+convert::ui2str(thread_smb__shares.size())+" shares.");
 	} else {
-		DEBUG("(smb) Requested share '"+request.share()+"' on ip='"+utils::inet_ntoa(request.address())+"',username='"+request.username()+"'.");
-		c_path filepath; filepath.push_back(request.share());
+		DEBUG("(smb) Requested share '"+request.share()+"' on ip='"+convert::ipaddr2print(request.address())+"',username='"+request.username()+"'.");
+		t_path filepath; filepath.push_back(request.share());
 		thread_smb__action_resource(request, filepath);
 	}
 	// scanning each share for files with independent sequentive thread
-	for (vector< pair<string,t_id> >::const_iterator i = thread_smb__shares.begin(); i != thread_smb__shares.end(); i++)
+	for (vector< pair<string,t_sqlid> >::const_iterator i = thread_smb__shares.begin(); i != thread_smb__shares.end(); i++)
 	{
-		DEBUG("(smb) Scanning for files on ip='"+utils::inet_ntoa(request.address())+"',share='"+i->first+"',username='"+request.username()+"'.");
+		DEBUG("(smb) Scanning for files on ip='"+convert::ipaddr2print(request.address())+"',share='"+i->first+"',username='"+request.username()+"'.");
 		c_request sharerequest = request;
 		sharerequest.share(i->first);
 		sharerequest.resourceid(i->second);
@@ -94,10 +95,10 @@ int thread_smb ()
 			NULL,
 			thread_smb__action_start))
 		{
-			DEBUG("(smb) Flushing files on ip='"+utils::inet_ntoa(request.address())+"',share='"+i->first+"',username='"+request.username()+"'.");
+			DEBUG("(smb) Flushing files on ip='"+convert::ipaddr2print(request.address())+"',share='"+i->first+"',username='"+request.username()+"'.");
 			database->flush_files(sharerequest);
 		}
-		DEBUG("(smb) Scanned for files on ip='"+utils::inet_ntoa(request.address())+"',share='"+i->first+"',username='"+request.username()+"'.");
+		DEBUG("(smb) Scanned for files on ip='"+convert::ipaddr2print(request.address())+"',share='"+i->first+"',username='"+request.username()+"'.");
 	}
 	return result;
 }
