@@ -188,6 +188,7 @@ int main(int argc, char ** argv, char ** env) {
 								 (dirent->smbc_type == SMBC_WORKGROUP );
 						bool statable =  (dirent->smbc_type == SMBC_DIR       ) ||
 								 (dirent->smbc_type == SMBC_FILE      );
+						bool statok = false;
 						DEBUG("It is "+(container?"":"not ")+"container & "+(statable?"":"not ")+"statable.");
 						if (statable)
 						{
@@ -197,18 +198,19 @@ int main(int argc, char ** argv, char ** env) {
 							if (stcode == -1)
 							{
 								DEBUG("Stat failed: "+strerror(errno));
-								memset(&st, 0, sizeof(st));
 							} else {
 								DEBUG("Stat successfull.");
+								statok = true;
+								if (container)
+								io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_dir (currpathstr + "/" + name, st));
+								else
+								io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_file(currpathstr + "/" + name, st));
 							}
-							if (container)
-							io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_dir (currpathstr + "/" + name, st));
-							else
-							io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_file(currpathstr + "/" + name, st));
 						} else {
-							io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_resource(currpathstr + "/" + name));
+								statok = true;
+								io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_resource(currpathstr + "/" + name));
 						}
-						if (container && level < depth)
+						if (container && statok && level < depth)
 						{
 							DEBUG("Putting recursible item '"+path+"' for future scanning.");
 							t_pathstack::value_type t;

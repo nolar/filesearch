@@ -5,8 +5,8 @@
 
 t_pident c_database_mysql::_initialized_pid = NULL;
 
-c_database_mysql::c_database_mysql (t_pident a_process, t_time a_startup, string host, string user, string pass, string db, unsigned int port, string socket, unsigned long flags)
-	: c_database (a_process, a_startup)
+c_database_mysql::c_database_mysql (string host, string user, string pass, string db, unsigned int port, string socket, unsigned long flags)
+	: c_database ()
 {
 	// storing connection parameters
 	f_host   = host;
@@ -46,11 +46,10 @@ c_database_mysql::~c_database_mysql ()
 	mysql_close(&handle);
 }
 
-
-
 c_database * c_database_mysql::duplicate ()
 {
-	c_database_mysql * result = new c_database_mysql(f_process, f_startup, f_host, f_user, f_pass, f_db, f_port, f_socket, f_flags);
+	c_database_mysql * result = new c_database_mysql(f_host, f_user, f_pass, f_db, f_port, f_socket, f_flags);
+	result->status_init(f_process, f_startup);
 	return result;
 }
 
@@ -70,6 +69,12 @@ string c_database_mysql::escape (string s)
 string c_database_mysql::quote (string s)
 {
 	return string() + "'" + escape(s) + "'";
+}
+
+string c_database_mysql::stamp (t_time value)
+{
+	string result;
+	result += 
 }
 
 
@@ -115,6 +120,33 @@ c_requests c_database_mysql::fetch_requests ()
 			row[11]?row[11]:"",
 			row[12]?row[12]:"");
 		result.push_back(request);
+	}
+
+	mysql_free_result(set);
+	return result;
+}
+
+t_time c_database_mysql::fetch_startup ()
+{
+	t_time result = 0;
+
+	string query = string() +
+		"select unix_timestamp(now())";
+	if (mysql_query(&handle, query.c_str()))
+	{
+		throw e_database("Can not retrieve current timestamp.", mysql_error(&handle));
+	}
+
+	MYSQL_RES * set = mysql_store_result(&handle);
+	if (!set)
+	{
+		throw e_database("Current timestamp retrieval failed with null set.", mysql_error(&handle));
+	}
+
+	MYSQL_ROW row;
+	while ((row = mysql_fetch_row(set)))
+	{
+		result = convert::str2time(row[0]?row[0]:"");
 	}
 
 	mysql_free_result(set);
@@ -248,9 +280,9 @@ void c_database_mysql::_resource_loose (c_request request)
 	string query = string() +
 		"update t_filesearch_resource" +
 		"   set f_stamp_lost = now()" +
-		" where f_stamp_seen < from_unixtime(" + convert::time2system(f_startup) + ")" +
-		"   and f_stamp_lost is null" +
-		"   and f_address = " + convert::ipaddr2system(request.address());
+		" where f_address = " + convert::ipaddr2system(request.address()) +
+		"   and f_stamp_seen < from_unixtime(" + convert::time2system(f_startup) + ")" +
+		"   and f_stamp_lost is null";
 	DEBUG("Trying query '" + query + "'.");
 	if (mysql_query(&handle, query.c_str()))
 	{
@@ -356,8 +388,8 @@ bool c_database_mysql::_file_add (t_sqlid &id, c_request request, c_fileinfo fil
 {
 	bool result = false;
 	string query = string() +
-		"insert into t_filesearch_file (                     f_filesearch_resource         ,                                      f_path        ,                 f_name       , f_stamp_found, f_stamp_seen, f_stamp_lost)" +
-		"                       values (" + convert::sqlid2system(request.resourceid()) + "," + quote(convert::path2print(fileinfo.path())) + "," + quote(fileinfo.name()) + ", now()        , now()       , NULL        )";
+		"insert into t_filesearch_file (                     f_filesearch_resource         ,                                     f_path        ,                 f_name       ,                                f_container       ,                                f_size       ,                                              f_ctime        ,                                              f_mtime       , f_stamp_found, f_stamp_seen, f_stamp_lost)" +
+		"                       values (" + convert::sqlid2system(request.resourceid()) + "," + quote(convert::path2print(fileinfo.path())) + "," + quote(fileinfo.name()) + "," + convert::flag2system(fileinfo.container()) + "," + convert::size2system(fileinfo.size()) + ",from_unixtime(" + convert::time2system(fileinfo.ctime()) + "),from_unixtime(" + convert::time2system(fileinfo.mtime())+ "), now()        , now()       , NULL        )";
 	DEBUG("Trying query '" + query + "'.");
 	if (mysql_query(&handle, query.c_str()))
 	{
@@ -423,10 +455,12 @@ void c_database_mysql::_file_change (t_sqlid id, c_fileinfo fileinfo)
 {
 	string query = string() +
 		"update t_filesearch_file" +
-		"   set f_size       = "               + convert::size2system(fileinfo.size() )       +
-		"     , f_ctime      = from_unixtime(" + convert::time2system(fileinfo.ctime()) + ")" +
-		"     , f_mtime      = from_unixtime(" + convert::time2system(fileinfo.mtime()) + ")" +
+		"   set f_container  = "               + convert::flag2system(fileinfo.container())      +
+		"     , f_size       = "               + convert::size2system(fileinfo.size() )          +
+		"     , f_ctime      = from_unixtime(" + convert::time2system(fileinfo.ctime())    + ")" +
+		"     , f_mtime      = from_unixtime(" + convert::time2system(fileinfo.mtime())    + ")" +
 		" where f_filesearch_file = " + convert::sqlid2system(id);
+	DEBUG("Trying query '" + query + "'.");
 	if (mysql_query(&handle, query.c_str()))
 	{
 		DEBUG("Query failed.");
@@ -453,12 +487,9 @@ t_sqlid c_database_mysql::report_share (c_request request, string share)
 			{
 				throw e_database("Can not find or create resource record."); // финиш. не существует и не создается.
 			}
-		} else changed = true;
+		}
 	}
-//???	if (changed)
-//	{
-//		_resource_update(resourceid);
-//	}
+//???	if (changed) _resource_change(resourceid); // do not need this - there is no data that can change.
 	_resource_cache.push_back(resourceid);
 	_resource_flush(false);
 	return resourceid;
@@ -485,12 +516,9 @@ t_sqlid c_database_mysql::report_file (c_request request, c_fileinfo fileinfo)
 			{
 				throw e_database("Can not find or create file record."); // финиш. не существует и не создается.
 			}
-		} else changed = true;
+		}
 	}
-	if (changed)
-	{
-		_file_change(fileid, fileinfo);
-	}
+	if (changed) _file_change(fileid, fileinfo);
 	_file_cache.push_back(fileid);
 	_file_flush(false);
 	return fileid;

@@ -32,6 +32,8 @@ void thread_free ()
 
 int thread_catch (std::exception * se, e_basic * be)
 {
+//!!!	kill(childpid, SIGKILL);
+//!!!	wait for child? or it can be left orphaned, when controlller process is killed.
 	delete database;
 	return 1;
 }
@@ -51,7 +53,10 @@ bool thread_wrap (string command, c_request request,
 	int ofd[2]; if (pipe(ofd) == -1) throw e_basic("can not create out pipe!!!", errno, strerror(errno));//e_basic???!!!
 	DEBUG("Created pipe "+convert::fd2print(ofd[0])+"<->"+convert::fd2print(ofd[1])+" for data stream of scanner process for ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
 
+	//
+	std::string url = convert::proto2print(request.proto())+"://"+convert::ipaddr2print(request.address())+"/"+request.share();
 	// executing scan process with substituted fds
+	STATUS("starting "+url);
 	map<int,int> fds;
 	vector<string> arg;
 	vector<string> env;
@@ -80,6 +85,7 @@ bool thread_wrap (string command, c_request request,
 	if (status) throw e_basic("Can not write task to scanner process "+convert::pident2print(pid)+" status "+convert::ui2str(status)+"."); //!!! ui2str -> stream2print
 
 	// reading and handling output of scanner process
+	STATUS("handling "+url);
 	timeval timer;
 	bool datacomplete = false;
 	do {
@@ -137,6 +143,7 @@ bool thread_wrap (string command, c_request request,
 	DEBUG("Reading of data from scanner process "+convert::pident2print(pid)+" finished.");
 
 	// closing process
+	STATUS("closing "+url);
 	DEBUG("Waiting for scanner process "+convert::pident2print(pid)+" to finish.");
 	int wstat;
 	DEBUG("Sending signal to process "+convert::pident2print(pid)+".");
@@ -150,5 +157,6 @@ bool thread_wrap (string command, c_request request,
 		DEBUG("Scanner process "+convert::pident2print(pid)+" exited: "+convert::pstatus2print(wstat)+".");
 	}
 	DEBUG("KILLING FINISHED counter="+convert::si2str(counter)+" lastcode="+strerror(errno)+".");
+	STATUS("");
 	return datacomplete;
 }

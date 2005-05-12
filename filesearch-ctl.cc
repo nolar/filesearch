@@ -74,7 +74,8 @@ int main (int argc, char ** argv, char ** env) {
 		io::fd_null = open(io::fd_null_path, O_RDWR);
 		// connecting main thread to database
 		DEBUG("Connecting to database.");
-		database = new c_database_mysql(getpid(), time(NULL), "", "filesearch", "filesearch", "filesearch", 0, "", 0);
+		database = new c_database_mysql("", "filesearch", "filesearch", "filesearch", 0, "", 0);
+		database->status_init();
 		database->status_clean();
 		DEBUG("Connection to database established.");
 		// retrieving options from database config table

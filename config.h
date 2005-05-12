@@ -16,8 +16,8 @@
 #define DEBUG(s) do { io::debug(std::string()+s);         } while (0)
 #endif
 
-#define LOG(s)   do { io::log(std::string()+s); DEBUG(s); } while (0)
-
-#define NOP if(0){}
+#define LOG(s)    do { io::log(std::string()+s); DEBUG(s); } while (0)
+#define STATUS(s) do { setproctitle("%s", (std::string()+s).c_str()); } while (0)
+#define NOP       if(0){}
 
 #endif

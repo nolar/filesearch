@@ -13,18 +13,20 @@ class c_database {
 private:
 protected:
 	// fields for status maintenance
-	t_pident  f_process;
-	t_time f_startup;
+	t_pident f_process;
+	t_time   f_startup;
 public:
-	c_database (t_pident a_process, t_time a_startup);
+	c_database ();
 	virtual ~c_database ();
-	//
 	virtual c_database * duplicate () = 0;
 
-	// Functions to work with address blocks.
+	// Functions to fetch basic data
+	virtual t_time     fetch_startup  () = 0;
 	virtual c_requests fetch_requests () = 0;
 
 	// Functions to work with temporary per-process host/share status.
+	        void status_init  ();
+	        void status_init  (t_pident a_process, t_time a_startup);
 	virtual bool status_check (c_request request) = 0;
 	virtual void status_renew (c_request request) = 0;
 	virtual void status_clean () = 0;

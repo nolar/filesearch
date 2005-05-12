@@ -37,20 +37,20 @@ protected:
 	// field for per-thread initialization
 	static t_pident _initialized_pid;
 	// supplimentary routines
-	string escape (string s);
-	string quote  (string s);
+	string escape (string value);
+	string quote  (string value);
+	string stamp  (t_time value);
 ///	void thread_lock ();
 ///	void thread_unlock ();
 public:
-	c_database_mysql (t_pident a_process, t_time a_startup, string host, string user, string pass, string db, unsigned int port, string socket, unsigned long flags);
+	c_database_mysql (string host, string user, string pass, string db, unsigned int port, string socket, unsigned long flags);
 	virtual ~c_database_mysql ();
-	//
 	virtual c_database * duplicate ();
-	//
-///	virtual void thread_init ();
-///	virtual void thread_free ();
-	// Functions to work with address requests.
+
+	// Functions to fethc basic data
+	virtual t_time     fetch_startup  ();
 	virtual c_requests fetch_requests ();
+
 	// Functions to work with temporary per-process host/share status.
 	virtual bool status_check (c_request request);
 	virtual void status_renew (c_request request);
