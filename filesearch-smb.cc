@@ -24,18 +24,15 @@
 #include "io.h"
 #include "convert.h"
 
-std::string address_s;
-std::string rootpath_s;
-std::string username;
-std::string password;
-std::string workgroup;
-std::string selfname;
-std::string timeout_s;
-std::string depth_s;
-t_ipaddr address;
-t_path rootpath;
-t_timeout timeout;
-t_depth   depth;
+t_ipaddr    address   ;
+t_path      rootpath  ;
+t_string    username  ;
+t_string    password  ;
+t_string    workgroup ;
+t_string    selfname  ;
+t_timeout   timeout   ;
+t_depth     depth     ;
+t_ipc_vec   excludes  ;
 
 SMBCCTX * ctx = NULL;
 
@@ -105,29 +102,33 @@ int main(int argc, char ** argv, char ** env) {
 		// получение параметров вызова программы и занесение их в переменные
 		DEBUG("Getting initial parameters for scanning.");
 		t_stream_status status;
-		timeval timer_params;
-		timer_params.tv_sec  = options::timeout_params_sec;
-		timer_params.tv_usec = options::timeout_params_usec;
-		std::vector<std::string> data, params = io::readblock(io::fd_task, &timer_params, &status, options::terminator, true, true, 8, 8);
-		if (params.size() < 8) throw e_io("Can not read required number of parameters (8).");
+		timeval timer;
+		timer.tv_sec  = options::timeout_params_sec;
+		timer.tv_usec = options::timeout_params_usec;
+		t_ipc_map task = io::readmap(io::fd_task, &timer, &status, options::ipc_terminator, options::ipc_assign, true, true);
+//!!!		if (task.size() < 8) throw e_io("Can not read required number of parameters (need 8).");
+		DEBUG("Reading of parameters finished with status "+io::sstatus2print(status)+". Starting to parse them.");
+		address    = convert::ipcval2ipaddr   (task[ipc_code_ipaddr   ]);
+		rootpath   = convert::ipcval2path     (task[ipc_code_root     ]);
+		username   = convert::ipcval2string   (task[ipc_code_username ]); if (username.empty()) username = options::smb_guestusername;
+		password   = convert::ipcval2string   (task[ipc_code_password ]);
+		workgroup  = convert::ipcval2string   (task[ipc_code_workgroup]);
+		selfname   = convert::ipcval2string   (task[ipc_code_selfname ]);
+		timeout    = convert::ipcval2timeout  (task[ipc_code_timeout  ]); timeout *= 1000;
+		depth      = convert::ipcval2depth    (task[ipc_code_depth    ]);
 		DEBUG("Successfully got the following parameters for scanning:");
-		address_s  = params[0]; address = convert::str2ipaddr(address_s);
-		rootpath_s = params[1]; rootpath = convert::str2path(rootpath_s);
-		username   = params[2]; if (username.empty()) username = options::smb_guestusername;
-		password   = params[3];
-		workgroup  = params[4];
-		selfname   = params[5];
-		timeout_s  = params[6]; timeout = convert::str2timeout(timeout_s) * 1000;
-		depth_s    = params[7]; depth   = convert::str2depth  (depth_s  );
-		DEBUG("address='"  +convert::ipaddr2print(address) +"'"   );
-		DEBUG("rootpath='" +convert::path2print(rootpath)  +"'"   );
-		DEBUG("username='" +username                       +"'"   );
-		DEBUG("password='" +password                       +"'"   );
-		DEBUG("workgroup='"+workgroup                      +"'"   );
-		DEBUG("selfname='" +selfname                       +"'"   );
-		DEBUG("timeout="   +convert::timeout2print(timeout)+"msec");
-		DEBUG("depth="     +convert::depth2print(depth)           );
-		DEBUG("End of parameters list.");
+		DEBUG("address='"  +convert::ipaddr2print (address  )+"'"   );
+		DEBUG("rootpath='" +convert::path2print   (rootpath )+"'"   );
+		DEBUG("username='" +convert::string2print (username )+"'"   );
+		DEBUG("password='" +convert::string2print (password )+"'"   );
+		DEBUG("workgroup='"+convert::string2print (workgroup)+"'"   );
+		DEBUG("selfname='" +convert::string2print (selfname )+"'"   );
+		DEBUG("timeout="   +convert::timeout2print(timeout  )+"msec");
+		DEBUG("depth="     +convert::depth2print  (depth    )       );
+		DEBUG("Reading list of exclusions for scanning.");
+		excludes = io::readvec(io::fd_task, &timer, &status, options::ipc_terminator, true, true);
+		DEBUG("Successfully got "+convert::si2str(excludes.size())+" exclusions for scanning.");
+		DEBUG("Finished reading task.");
 		// initializing smbclient
 		DEBUG("Creating smbc context.");
 		ctx = smbc_new_context();
@@ -153,7 +154,7 @@ int main(int argc, char ** argv, char ** env) {
 		t_pathstack::value_type t;
 		t.second = 1;
 		pathstack.push(t);
-		std::string rootpathstr = std::string("smb://") + convert::ipaddr2print(address) + (rootpath.empty()?"":"/") + convert::path2system(rootpath);
+		std::string rootpathstr = std::string("smb://") + convert::ipaddr2print(address) + (rootpath.empty()?"":"/") + convert::path2ipc(rootpath);
 		//
 		DEBUG("Starting recursive scan in '"+rootpathstr+"'.");
 		while (!pathstack.empty())
@@ -162,7 +163,7 @@ int main(int argc, char ** argv, char ** env) {
 			t_path currpath = pathstack.top().first;
 			t_depth level = pathstack.top().second;
 			pathstack.pop();
-			std::string currpathstr = (currpath.empty()?"":"/") + convert::path2system(currpath);
+			std::string currpathstr = (currpath.empty()?"":"/") + convert::path2ipc(currpath);
 			std::string openpathstr = rootpathstr + currpathstr;
 			//
 			DEBUG("Opening path '"+openpathstr+"' for directory listing.");
@@ -172,7 +173,7 @@ int main(int argc, char ** argv, char ** env) {
 				LOG("Could not open path '"+openpathstr+"': "+strerror(errno));
 			} else {
 				DEBUG("Path '"+openpathstr+"' opened.");
-				io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_enter(currpathstr));
+				io::writemap(io::fd_data, NULL, NULL, options::terminator, formate_enter(currpathstr));
 				smbc_dirent * dirent;
 				DEBUG("Listing its entries.");
 				while (level <= depth && (dirent = ctx->readdir(ctx, dir)) != NULL)

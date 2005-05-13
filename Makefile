@@ -19,7 +19,7 @@ filesearch-smb: ${OBJECTS} ${OBJECTS_FOR_SMB}
 
 
 
-AAA: ${OBJECTS} AAA.o convert.o
+AAA:  AAA.o c_object.o c_stream.o c_stopsign.o c_mapkey.o c_signed.o c_unsigned.o c_double.o c_flag.o c_stamp.o c_string.o
 	g++ ${CFLAGS} ${LDFLAGS} $> -o $@
 
 BBB: ${OBJECTS} BBB.o

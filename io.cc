@@ -9,24 +9,23 @@
 
 
 
-int io::_error;
-
 t_fd io::fd_task  = 0;
 t_fd io::fd_data  = 3;
 t_fd io::fd_log   = 2;
 t_fd io::fd_debug = 1;
 t_fd io::fd_null  = -1;
-char * io::fd_null_path = "/dev/null";
+char * io::fd_null_file = "/dev/null";
 
-std::string::value_type io::log_terminator = '\n';
-std::string io::log_time_format = "%Y-%m-%d %H:%M:%S";
-int         io::log_pid_length  = 5;
+std::string::value_type io::log_terminator  = '\n';
+std::string             io::log_time_format = "%Y-%m-%d %H:%M:%S";
+int                     io::log_pid_length  = 5;
 
 
 
-std::string io::readline (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, bool strict, bool skipempty)
+std::string io::_read (t_fd fd, timeval * timer, t_stream_status * status, int * error, std::string::value_type terminator, bool strict, bool skipbefore)
 {
-	t_stream_status status_ = stream_status_ok;
+	std::string result;
+	t_stream_status status_ = stream_status_ok; int error_ = 0;
 	timeval time_start, time_stop, time_now, time_left;
 	// prepairing timers
 	if (timer)
@@ -36,9 +35,8 @@ std::string io::readline (t_fd fd, timeval * timer, t_stream_status * status, st
 		timeradd(&time_start, timer, &time_stop);
 	}
 	// checking if fd exists
-	if (!fd_ok(fd)) { status_ = stream_status_nofd; } //!!! maybe make do{}while -> while(!status){} and not to return reesult here, but just to setup status to error, and add timeout checking before any while()ing
+	if (!fd_ok(fd)) { status_ = stream_status_nofd; error_ = errno; }
 	// reading
-	std::string result;
 	while (!status_)
 	{
 		int code;
@@ -54,19 +52,17 @@ std::string io::readline (t_fd fd, timeval * timer, t_stream_status * status, st
 		fd_set fdset;
 		FD_ZERO(&fdset);
 		FD_SET(fd, &fdset);
-//!!!		Can not understand why select() does not work on pipes :-\ Assuming that fd is always ready for reading.
-//!!!		code = (timer && ((time_left.tv_sec < 0) || (time_left.tv_usec < 0))) ? 0 : 1;
 		code = ::select(fd+1, &fdset, NULL, NULL, timer ? &time_left : NULL);
 		if (code ==  0) { status_ = stream_status_timeout; break; }
 		if (code == -1) { if (errno == EAGAIN) continue; }  // EAGAIN || EINTR ???
-		if (code == -1) { status_ = stream_status_select ; _error = errno; break;  }
+		if (code == -1) { status_ = stream_status_select ; error_ = errno; break;  }
 		// reading data from file if they are there
 		std::string::value_type buf;
 		code = ::read(fd, &buf, sizeof(buf));
 		if (code ==  0) { status_ = stream_status_eof; break; }
 		if (code == -1) { if (errno == EAGAIN) continue; }
-		if (code == -1) { status_ = stream_status_read; _error = errno;  break; }
-		if (buf == terminator && !(skipempty && result.empty())) break;
+		if (code == -1) { status_ = stream_status_read; error_ = errno; break; }
+		if (buf == terminator && !(skipbefore && result.empty())) break;
 		if (buf != terminator) result += buf;
 	}
 	// setting timers
@@ -76,46 +72,88 @@ std::string io::readline (t_fd fd, timeval * timer, t_stream_status * status, st
 		timersub(&time_stop, &time_now, timer);
 		if (timer->tv_sec < 0 || timer->tv_usec < 0) timerclear(timer);
 	}
-	// saveing status and throwing exception if nowhere to save status
+	// saving status and throwing exception if nowhere to save status
 	if (status) *status = status_;
+	if (error ) *error  = error_ ;
 	else switch (status_)
 	{
-		case stream_status_nofd  : throw e_io("Non-existent fd "        + convert::fd2print(fd) + ".", _error, strerror(_error));
-		case stream_status_select: throw e_io("Can not select from fd " + convert::fd2print(fd) + ".", _error, strerror(_error));
-		case stream_status_read  : throw e_io("Can not read from fd "   + convert::fd2print(fd) + ".", _error, strerror(_error));
+		case stream_status_nofd  : throw e_io("Non-existent fd "        + convert::fd2print(fd) + ".", error_, strerror(error_));
+		case stream_status_select: throw e_io("Can not select from fd " + convert::fd2print(fd) + ".", error_, strerror(error_));
+		case stream_status_read  : throw e_io("Can not read from fd "   + convert::fd2print(fd) + ".", error_, strerror(error_));
 		default: NOP;
 	}
-	// returning result if not in struct mode or no error
+	// returning result if not in strict mode or if no error
 	return (strict && status_) ? std::string() : result;
 }
 
-std::vector<std::string> io::readblock (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, bool strict, bool skipempty, unsigned mincount, unsigned maxcount)
+t_ipc_val io::readval (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, bool strict, bool skipbefore)
 {
-	t_stream_status status_ = stream_status_ok;
-	std::vector<std::string> result;
+	int error_;
+	std::string s = _read(fd, timer, status, &error_, terminator, strict, skipbefore);
+	return s;
+}
+
+t_ipc_vec io::readvec (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, bool strict, bool skipbefore, unsigned mincount, unsigned maxcount)
+{
+	t_stream_status status_ = stream_status_ok; int error_ = 0;
+	t_ipc_vec result;
 	while (!status_) {
-		std::string line = readline(fd, timer, &status_, terminator, strict, skipempty);
-		skipempty = false;
+		std::string line = _read(fd, timer, &status_, &error_, terminator, strict, skipbefore);
+		skipbefore = false;
 		if ( line.empty() && (!mincount || result.size() >= mincount)) break;
-		if (!line.empty() || !strict || !status_) result.push_back(line);
-		if ( status_      || ( maxcount && result.size() >= maxcount)) break;
+		if (!line.empty() || !strict || !status_)
+		{
+			result.push_back(line);
+		}
+		if (status_ || (maxcount && result.size() >= maxcount)) break;
 	}
 	// saveing status and throwing exception if nowhere to save status
 	if (status) *status = status_;
 	else switch (status_)
 	{
-		case stream_status_nofd  : throw e_io("Non-existent fd "        + convert::fd2print(fd) + ".", _error, strerror(_error));
-		case stream_status_select: throw e_io("Can not select from fd " + convert::fd2print(fd) + ".", _error, strerror(_error));
-		case stream_status_read  : throw e_io("Can not read from fd "   + convert::fd2print(fd) + ".", _error, strerror(_error));
+		case stream_status_nofd  : throw e_io("Non-existent fd "        + convert::fd2print(fd) + ".", error_, strerror(error_));
+		case stream_status_select: throw e_io("Can not select from fd " + convert::fd2print(fd) + ".", error_, strerror(error_));
+		case stream_status_read  : throw e_io("Can not read from fd "   + convert::fd2print(fd) + ".", error_, strerror(error_));
 		default: NOP;
 	}
 	// returning result if not in struct mode or no error
 	return result;
 }
 
-void io::writeline (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, std::string value)
+t_ipc_map io::readmap (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, std::string::value_type assign, bool strict, bool skipbefore, unsigned mincount, unsigned maxcount)
 {
-	t_stream_status status_ = stream_status_ok;
+	t_stream_status status_ = stream_status_ok; int error_ = 0;
+	t_ipc_map result;
+	while (!status_) {
+		std::string line = _read(fd, timer, &status_, &error_, terminator, strict, skipbefore);
+		skipbefore = false;
+		if ( line.empty() && (!mincount || result.size() >= mincount)) break;
+		if (!line.empty() || !strict || !status_)
+		{
+			std::string::size_type p = line.find(assign);
+			if (p == std::string::npos) throw e_io("Can not parse map line '"+line+"'.");
+			else result[line.substr(0,p)] = line.substr(p+1);
+		}
+		if (status_ || (maxcount && result.size() >= maxcount)) break;
+	}
+	// saveing status and throwing exception if nowhere to save status
+	if (status) *status = status_;
+	else switch (status_)
+	{
+		case stream_status_nofd  : throw e_io("Non-existent fd "        + convert::fd2print(fd) + ".", error_, strerror(error_));
+		case stream_status_select: throw e_io("Can not select from fd " + convert::fd2print(fd) + ".", error_, strerror(error_));
+		case stream_status_read  : throw e_io("Can not read from fd "   + convert::fd2print(fd) + ".", error_, strerror(error_));
+		default: NOP;
+	}
+	// returning result if not in struct mode or no error
+	return result;
+}
+
+
+
+void io::_write (t_fd fd, timeval * timer, t_stream_status * status, int * error, std::string::value_type terminator, std::string value)
+{
+	t_stream_status status_ = stream_status_ok; int error_ = 0;
 	timeval time_start, time_stop, time_now, time_left;
 	// prepairing timers
 	if (timer)
@@ -125,7 +163,7 @@ void io::writeline (t_fd fd, timeval * timer, t_stream_status * status, std::str
 		timeradd(&time_start, timer, &time_stop);
 	}
 	// checking if fd exists
-	if (!fd_ok(fd)) { status_ = stream_status_nofd; } //!!! maybe make do{}while -> while(!status){} and not to return reesult here, but just to setup status to error, and add timeout checking before any while()ing
+	if (!fd_ok(fd)) { status_ = stream_status_nofd; error_ = errno; }
 	// writing
 	std::string::size_type pos = 0; value += terminator;
 	while (!status_)
@@ -143,19 +181,16 @@ void io::writeline (t_fd fd, timeval * timer, t_stream_status * status, std::str
 		fd_set fdset;
 		FD_ZERO(&fdset);
 		FD_SET(fd, &fdset);
-//!!!		Can not understand why select() does not work for writing :-\ Assuming that fd is always ready for writing.
-//!!!		code = timer ? ::select(1, NULL, &fdset, NULL, &time_left) : 1;
 		code = ::select(fd+1, NULL, &fdset, NULL, timer ? &time_left : NULL);
-//!!!		code = (timer && ((time_left.tv_sec < 0) || (time_left.tv_usec < 0))) ? 0 : 1;
 		if (code ==  0) { status_ = stream_status_timeout; break; }
 		if (code == -1) { if (errno == EAGAIN) continue; }  // EAGAIN || EINTR ???
-		if (code == -1) { status_ = stream_status_select ; _error = errno; break;  }
+		if (code == -1) { status_ = stream_status_select ; error_ = errno; break;  }
 		// writing data to file if it is ready
 		std::string buf = value.substr(pos); int bufsize = buf.length();
 		code = ::write(fd, buf.c_str(), bufsize);
 		if (code ==  0) { status_ = stream_status_eof; break; }
 		if (code == -1) { if (errno == EAGAIN) continue; }
-		if (code == -1) { status_ = stream_status_write; _error = errno;  break; }
+		if (code == -1) { status_ = stream_status_write; error_ = errno; break; }
 		if (code == bufsize) break;
 		pos += code;
 	}
@@ -168,64 +203,68 @@ void io::writeline (t_fd fd, timeval * timer, t_stream_status * status, std::str
 	}
 	// saveing status and throwing exception if nowhere to save status
 	if (status) *status = status_;
+	if (error ) *error  = error_ ;
 	else switch (status_)
 	{
-		case stream_status_nofd  : throw e_io("Non-existent fd "      + convert::fd2print(fd) + ".", _error, strerror(_error));
-		case stream_status_select: throw e_io("Can not select to fd " + convert::fd2print(fd) + ".", _error, strerror(_error));
-		case stream_status_write : throw e_io("Can not write to fd "  + convert::fd2print(fd) + ".", _error, strerror(_error));
+		case stream_status_nofd  : throw e_io("Non-existent fd "      + convert::fd2print(fd) + ".", error_, strerror(error_));
+		case stream_status_select: throw e_io("Can not select to fd " + convert::fd2print(fd) + ".", error_, strerror(error_));
+		case stream_status_write : throw e_io("Can not write to fd "  + convert::fd2print(fd) + ".", error_, strerror(error_));
 		default: NOP;
 	}
 }
 
-void io::writeblock (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, std::vector<std::string> value)
+void io::writeval (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, t_ipc_val value)
 {
-	t_stream_status status_ = stream_status_ok;
-	value.push_back(std::string());
-	for (std::vector<std::string>::const_iterator i = value.begin(); i != value.end(); i++)
+	int error_ = 0;
+	_write(fd, timer, status, &error_, terminator, value);
+}
+
+void io::writevec (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, t_ipc_vec value)
+{
+	t_stream_status status_ = stream_status_ok; int error_ = 0;
+	for (t_ipc_vec::const_iterator i = value.begin(); i != value.end(); i++)
 	{
-		writeline(fd, timer, &status_, terminator, *i);
+		_write(fd, timer, &status_, &error_, terminator, *i);
 		if (status_) break;
 	}
-	// saveing status and throwing exception if nowhere to save status
+	if (!status_) _write(fd, timer, &status_, &error_, terminator, "");
+	// saving status and throwing exception if nowhere to save status
 	if (status) *status = status_;
 	else switch (status_)
 	{
-		case stream_status_nofd  : throw e_io("Non-existent fd "      + convert::fd2print(fd) + ".", _error, strerror(_error));
-		case stream_status_select: throw e_io("Can not select to fd " + convert::fd2print(fd) + ".", _error, strerror(_error));
-		case stream_status_write : throw e_io("Can not write to fd "  + convert::fd2print(fd) + ".", _error, strerror(_error));
+		case stream_status_nofd  : throw e_io("Non-existent fd "      + convert::fd2print(fd) + ".", error_, strerror(error_));
+		case stream_status_select: throw e_io("Can not select to fd " + convert::fd2print(fd) + ".", error_, strerror(error_));
+		case stream_status_write : throw e_io("Can not write to fd "  + convert::fd2print(fd) + ".", error_, strerror(error_));
+		default: NOP;
+	}
+}
+
+void io::writemap (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, std::string::value_type assign, t_ipc_map value)
+{
+	t_stream_status status_ = stream_status_ok; int error_ = 0;
+	for (t_ipc_map::const_iterator i = value.begin(); i != value.end(); i++)
+	{
+		_write(fd, timer, &status_, &error_, terminator, i->first + assign + i->second);
+		if (status_) break;
+	}
+	if (!status_) _write(fd, timer, &status_, &error_, terminator, "");
+	// saving status and throwing exception if nowhere to save status
+	if (status) *status = status_;
+	else switch (status_)
+	{
+		case stream_status_nofd  : throw e_io("Non-existent fd "      + convert::fd2print(fd) + ".", error_, strerror(error_));
+		case stream_status_select: throw e_io("Can not select to fd " + convert::fd2print(fd) + ".", error_, strerror(error_));
+		case stream_status_write : throw e_io("Can not write to fd "  + convert::fd2print(fd) + ".", error_, strerror(error_));
 		default: NOP;
 	}
 }
 
 
 
-std::string io::_time_pid_prefix ()
+void io::log (t_fd fd, std::string message)
 {
-	return convert::time2print(time(NULL), log_time_format) + " [" + convert::pident2print(getpid(), log_pid_length) + "] ";
-}
-
-void io::log (std::string message)
-{
-	message = _time_pid_prefix() + message;
-	writeline(fd_log, NULL, NULL, log_terminator, message);
-}
-
-void io::log (std::vector<std::string> message)
-{
-	for (std::vector<std::string>::iterator i = message.begin(); i != message.end(); i++) *i = _time_pid_prefix() + *i;
-	writeblock(fd_log, NULL, NULL, log_terminator, message);
-}
-
-void io::debug (std::string message)
-{
-	message = _time_pid_prefix() + message;
-	writeline(fd_debug, NULL, NULL, log_terminator, message);
-}
-
-void io::debug (std::vector<std::string> message)
-{
-	for (std::vector<std::string>::iterator i = message.begin(); i != message.end(); i++) *i = _time_pid_prefix() + *i;
-	writeblock(fd_debug, NULL, NULL, log_terminator, message);
+//	message = convert::time2print(time(NULL), log_time_format) + " [" + convert::pident2print(getpid(), log_pid_length) + "] " + message;
+	_write(fd, NULL, NULL, NULL, log_terminator, message);
 }
 
 

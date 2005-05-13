@@ -42,6 +42,17 @@ public:
 
 	static vector<t_sqlid>::size_type database_cachesize_resource;
 	static vector<t_sqlid>::size_type database_cachesize_file;
+
+	static t_ipc_code ipc_code_ipaddr   ; /* smb,ftp */
+	static t_ipc_code ipc_code_root     ; /* smb,ftp */
+	static t_ipc_code ipc_code_username ; /* smb,ftp */
+	static t_ipc_code ipc_code_password ; /* smb,ftp */
+	static t_ipc_code ipc_code_timeout  ; /* smb,ftp */
+	static t_ipc_code ipc_code_depth    ; /* smb,ftp */
+	static t_ipc_code ipc_code_selfname ; /* smb     */
+	static t_ipc_code ipc_code_workgroup; /* smb     */
+	static t_ipc_code ipc_code_ipport   ; /*     ftp */
+	static t_ipc_code ipc_code_bind     ; /*     ftp */
 };
 
 #endif

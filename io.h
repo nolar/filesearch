@@ -21,30 +21,36 @@ enum t_stream_status {
 class io
 {
 private:
-	static int _error;
 protected:
-	static std::string _time_pid_prefix ();
 public:
-	static t_fd fd_task;
-	static t_fd fd_data;
+	// file descriptors
+	// warning: if you want something to be ignored, open() it to io::fd_null_file before.
+	static t_fd fd_ipc_task;
+	static t_fd fd_ipc_data;
 	static t_fd fd_log;
 	static t_fd fd_debug;
 	static t_fd fd_null;
-	static char * fd_null_path;
+	static char * fd_null_file;
 
-	static std::string::value_type log_terminator;
-	static std::string log_time_format;
-	static int         log_pid_length;
+	// format specifiers for logging
+	static std::string::value_type log_terminator ;
+	static std::string             log_time_format;
+	static int                     log_pid_length ;
 
 	// streaming routies
-	static             std::string  readline  (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, bool strict, bool skipempty);
-	static std::vector<std::string> readblock (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, bool strict, bool skipempty, unsigned mincount = 0, unsigned maxcount = 0);
-	static                    void writeline  (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, std::string              value);
-	static                    void writeblock (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, std::vector<std::string> value);
-	static void log        (std::string              message);
-	static void log        (std::vector<std::string> message);
-	static void debug      (std::string              message);
-	static void debug      (std::vector<std::string> message);
+
+	
+	static std::string _read   (t_fd fd, timeval * timer, t_stream_status * status, int * error, std::string::value_type terminator, bool strict, bool skipbefore);
+	static t_ipc_val   readval (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator,                                 bool strict, bool skipbefore);
+	static t_ipc_vec   readvec (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator,                                 bool strict, bool skipbefore, unsigned mincount = 0, unsigned maxcount = 0);
+	static t_ipc_map   readmap (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, std::string::value_type assign, bool strict, bool skipbefore, unsigned mincount = 0, unsigned maxcount = 0);
+
+	static void       _write   (t_fd fd, timeval * timer, t_stream_status * status, int * error, std::string::value_type terminator, std::string value);
+	static void       writeval (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator,                                 t_ipc_val   value);
+	static void       writevec (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator,                                 t_ipc_vec   value);
+	static void       writemap (t_fd fd, timeval * timer, t_stream_status * status, std::string::value_type terminator, std::string::value_type assign, t_ipc_map   value);
+
+	static void            log (t_fd fd, std::string message);
 
 	// file descriptor handling
 	static bool fd_ok (t_fd fd);

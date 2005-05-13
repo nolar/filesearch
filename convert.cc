@@ -7,6 +7,11 @@
 #include <sys/wait.h>
 #include "convert.h"
 
+//debug!!!
+#include <iostream>
+#include <iomanip>
+using namespace std;
+
 
 
 const int convert::_buffer_size = 1024;
@@ -191,114 +196,88 @@ std::string convert::ld2str (long double value, int pad, int precision)
 
 
 
-t_ipaddr convert::str2ipaddr (std::string value)
+
+
+t_ipaddr convert::ipcval2ipaddr (t_ipc_val value)
 {
-	t_ipaddr result;
-	try { result = (t_ipaddr) str2ul(value); }
-	catch (e_convert &e)
-	{
-		in_addr_t addr = inet_addr(value.c_str());
-		if (addr == INADDR_NONE)
-			throw e_convert("Can not convert string '"+value+"' to ip address.", errno, strerror(errno));
-		result = 0;
-		result |= addr & 0xFF; addr >>= 8; result <<= 8;
-		result |= addr & 0xFF; addr >>= 8; result <<= 8;
-		result |= addr & 0xFF; addr >>= 8; result <<= 8;
-		result |= addr & 0xFF;
-	}
+	in_addr_t addr = inet_addr(value.c_str());
+	if (addr == INADDR_NONE)
+		throw e_convert("Can not convert string '"+value+"' to ip address.", errno, strerror(errno));
+	t_ipaddr result = 0;
+	result |= addr & 0xFF; addr >>= 8; result <<= 8;
+	result |= addr & 0xFF; addr >>= 8; result <<= 8;
+	result |= addr & 0xFF; addr >>= 8; result <<= 8;
+	result |= addr & 0xFF;
 	return result;
 }
 
-t_ipaddr convert::str2ipaddr (std::string value, t_ipaddr def)
+t_ipmask convert::ipcval2ipmask (t_ipc_val value)
 {
-	try { return str2ipaddr(value); }
-	catch (e_convert) { return def; }
+	try { return (t_ipmask) str2ui(value); }
+	catch (e_convert &e) { throw e_convert("Can not convert string '"+value+"' to ip mask.", e.what()); }
 }
 
-t_ipmask convert::str2ipmask (std::string value)
+t_ipport convert::ipcval2ipport (t_ipc_val value)
 {
-	t_ipmask result;
-	try { result = (t_ipmask) str2ui(value); }
-	catch (e_convert &e)
-	{
-		throw e_convert("Can not convert string '"+value+"' to ip mask.", e.what());
-	}
-	return result;
+	try { return (t_ipport) str2ui(value); }
+	catch (e_convert &e) { throw e_convert("Can not convert string '"+value+"' to ip port.", e.what()); }
 }
 
-t_ipmask convert::str2ipmask (std::string value, t_ipmask def)
+t_proto convert::ipcval2proto (t_ipc_val value)
 {
-	try { return str2ipmask(value); }
-	catch (e_convert) { return def; }
+	if (value == "smb" ) return proto_smb ; else
+	if (value == "ftp" ) return proto_ftp ; else
+	if (value == "http") return proto_http; else
+	throw e_convert("Can not convert string '"+value+"' to protocol.", e.what());
 }
 
-t_ipport convert::str2ipport (std::string value)
+t_path convert::ipcval2path (t_ipc_val value)
 {
-	t_ipport result;
-	try { result = (t_ipport) str2ui(value); }
-	catch (e_convert &e)
-	{
-		throw e_convert("Can not convert string '"+value+"' to ip port.", e.what());
-	}
-	return result;
+	return (t_path) _split(value, "/");
 }
 
-t_ipport convert::str2ipport (std::string value, t_ipport def)
-{
-	try { return str2ipport(value); }
-	catch (e_convert) { return def; }
-}
-
-t_proto convert::str2proto (std::string value)
-{
-	t_proto result;
-	try { result = (t_proto) str2ui(value); }
-	catch (e_convert &e)
-	{
-		if (value == "smb" ) return proto_smb ; else
-		if (value == "ftp" ) return proto_ftp ; else
-		if (value == "http") return proto_http; else
-		throw e_convert("Can not convert string '"+value+"' to protocol.", e.what());
-	}
-	return result;
-}
-
-t_proto convert::str2proto (std::string value, t_proto def)
-{
-	try { return str2proto(value); }
-	catch (e_convert) { return def; }
-}
-
-t_path convert::str2path (std::string value)
-{
-	t_path result = (t_path) _split(value, "/");
-	return result;
-}
-
-t_path convert::str2path (std::string value, t_path def)
-{
-	try { return str2path(value); }
-	catch (e_convert) { return def; }
-}
-
-t_time convert::str2time (std::string value)
+t_time convert::ipcval2time (t_ipc_val value)
 {
 	t_time result;
-	try { result = (t_time) str2si(value); }
-	catch (e_convert &e)
+	bool bad = false;
+	try
 	{
+		std::vector<std::string> parts = _split(value, ".");
+		struct tm t; memset(&t, 0, sizeof(t));
+		if (!bad && parts.size() > 5) t.tm_sec  = str2si(parts[5]);
+		if (!bad && parts.size() > 4) t.tm_min  = str2si(parts[4]);
+		if (!bad && parts.size() > 3) t.tm_hour = str2si(parts[3]);
+		if (!bad && parts.size() > 2) t.tm_mday = str2si(parts[2]); else bad = true;
+		if (!bad && parts.size() > 1) t.tm_mon  = str2si(parts[1]); else bad = true;
+		if (!bad && parts.size() > 0) t.tm_year = str2si(parts[0]); else bad = true;
+		if (!bad)
+		{
+			t.tm_year -= 1900;
+			t.tm_mon -= 1;
+			cerr << t.tm_year << endl;
+			cerr << t.tm_mon  << endl;
+			cerr << t.tm_mday << endl;
+			cerr << t.tm_hour << endl;
+			cerr << t.tm_min  << endl;
+			cerr << t.tm_sec  << endl;
+			cerr << asctime(&t) << endl;
+			result = (t_time) ::timegm(&t);
+			if (result == -1) throw e_convert("Call to timegm() failed.", errno, strerror(errno));
+		} else throw e_convert("Can not parse timstamp.");
+	}
+	catch (e_convert &e) { 
 		throw e_convert("Can not convert string '"+value+"' to timestamp.", e.what());
 	}
 	return result;
 }
 
-t_time convert::str2time (std::string value, t_time def)
+t_time convert::ipcval2time (t_ipc_val value, t_time def)
 {
 	try { return str2time(value); }
 	catch (e_convert) { return def; }
 }
 
-t_size convert::str2size (std::string value)
+t_size convert::ipcval2size (t_ipc_val value)
 {
 	t_size result;
 	try { result = (t_size) str2ui(value); }
@@ -309,13 +288,13 @@ t_size convert::str2size (std::string value)
 	return result;
 }
 
-t_size convert::str2size (std::string value, t_size def)
+t_size convert::ipcval2size (t_ipc_val value, t_size def)
 {
 	try { return str2size(value); }
 	catch (e_convert) { return def; }
 }
 
-t_sqlid convert::str2sqlid (std::string value)
+t_sqlid convert::ipcval2sqlid (t_ipc_val value)
 {
 	t_sqlid result;
 	try { result = (t_sqlid) str2ul(value); }
@@ -326,13 +305,13 @@ t_sqlid convert::str2sqlid (std::string value)
 	return result;
 }
 
-t_sqlid convert::str2sqlid (std::string value, t_sqlid def)
+t_sqlid convert::ipcval2sqlid (t_ipc_val value, t_sqlid def)
 {
 	try { return str2sqlid(value); }
 	catch (e_convert) { return def; }
 }
 
-t_pident convert::str2pident (std::string value)
+t_pident convert::ipcval2pident (t_ipc_val value)
 {
 	t_pident result;
 	try { result = (t_pident) str2si(value); }
@@ -343,13 +322,13 @@ t_pident convert::str2pident (std::string value)
 	return result;
 }
 
-t_pident convert::str2pident (std::string value, t_pident def)
+t_pident convert::ipcval2pident (t_ipc_val value, t_pident def)
 {
 	try { return str2pident(value); }
 	catch (e_convert) { return def; }
 }
 
-t_pstatus convert::str2pstatus (std::string value)
+t_pstatus convert::ipcval2pstatus (t_ipc_val value)
 {
 	t_pstatus result;
 	try { result = (t_pstatus) str2si(value); }
@@ -360,13 +339,13 @@ t_pstatus convert::str2pstatus (std::string value)
 	return result;
 }
 
-t_pstatus convert::str2pstatus (std::string value, t_pstatus def)
+t_pstatus convert::ipcval2pstatus (t_ipc_val value, t_pstatus def)
 {
 	try { return str2pstatus(value); }
 	catch (e_convert) { return def; }
 }
 
-t_fd convert::str2fd (std::string value)
+t_fd convert::ipcval2fd (t_ipc_val value)
 {
 	t_fd result;
 	try { result = (t_fd) str2si(value); }
@@ -377,13 +356,13 @@ t_fd convert::str2fd (std::string value)
 	return result;
 }
 
-t_fd convert::str2fd (std::string value, t_fd def)
+t_fd convert::ipcval2fd (t_ipc_val value, t_fd def)
 {
 	try { return str2fd(value); }
 	catch (e_convert) { return def; }
 }
 
-t_flag convert::str2flag (std::string value)
+t_flag convert::ipcval2flag (t_ipc_val value)
 {
 	return !value.empty() && (value == "1" || value == "+"
 		|| value == "t" || value == "T" || value == "true" || value == "TRUE" || value == "True"
@@ -391,13 +370,13 @@ t_flag convert::str2flag (std::string value)
 		);
 }
 
-t_flag convert::str2flag (std::string value, t_flag def)
+t_flag convert::ipcval2flag (t_ipc_val value, t_flag def)
 {
 	try { return str2flag(value); }
 	catch (e_convert) { return def; }
 }
 
-t_timeout convert::str2timeout (std::string value)
+t_timeout convert::ipcval2timeout (t_ipc_val value)
 {
 	t_timeout result;
 	try { result = (t_timeout) str2ul(value); }
@@ -408,13 +387,13 @@ t_timeout convert::str2timeout (std::string value)
 	return result;
 }
 
-t_timeout convert::str2timeout (std::string value, t_timeout def)
+t_timeout convert::ipcval2timeout (t_ipc_val value, t_timeout def)
 {
 	try { return str2timeout(value); }
 	catch (e_convert) { return def; }
 }
 
-t_depth convert::str2depth (std::string value)
+t_depth convert::ipcval2depth (t_ipc_val value)
 {
 	t_depth result;
 	try { result = (t_depth) str2ul(value); }
@@ -425,7 +404,7 @@ t_depth convert::str2depth (std::string value)
 	return result;
 }
 
-t_depth convert::str2depth (std::string value, t_depth def)
+t_depth convert::ipcval2depth (t_ipc_val value, t_depth def)
 {
 	try { return str2depth(value); }
 	catch (e_convert) { return def; }
