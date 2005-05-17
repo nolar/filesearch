@@ -66,21 +66,6 @@ void c_stamp::stream_setdata (const void * buffer, t_object_size size)
 
 
 
-bool c_stamp::operator== (const c_stamp & right) const
-{
-	return f_year   == right.f_year
-	    && f_month  == right.f_month
-	    && f_day    == right.f_day
-	    && f_hour   == right.f_hour
-	    && f_minute == right.f_minute
-	    && f_second == right.f_second
-	    ;
-}
-
-
-
-
-
 int c_stamp::year ()
 {
 	return f_year;
@@ -124,3 +109,28 @@ time_t c_stamp::unixtime ()
 	if (result == -1) throw 1; //???!!!
 	return result;
 }
+
+std::string c_stamp::ascii (std::string format)
+{
+	return _strftime(format.c_str(), unixtime());
+}
+
+
+
+
+
+bool c_stamp::operator== (const c_stamp & right) const
+{
+	return f_year   == right.f_year
+	    && f_month  == right.f_month
+	    && f_day    == right.f_day
+	    && f_hour   == right.f_hour
+	    && f_minute == right.f_minute
+	    && f_second == right.f_second
+	    ;
+}
+
+
+
+
+

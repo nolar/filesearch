@@ -2,7 +2,13 @@
 #define _FILESEARCH_CONFIG_
 
 // uncomment this to disable debugging messages
-//#define NODEBUG
+#define NODEBUG
+
+//
+#define NOLOG
+
+//
+//#define NOSTATUS
 
 
 
@@ -10,14 +16,24 @@
 //                                    DO NOT EDIT WHAT FOLLOWS                                    //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#ifdef NOLOG
+#define LOG(s)
+#else
+#define LOG(s)    { if(!s_log.status())s_log.stamped(std::string()+s); DEBUG(s); }
+#endif
+
 #ifdef NODEBUG
 #define DEBUG(s)
 #else
-#define DEBUG(s) do { io::debug(std::string()+s);         } while (0)
+#define DEBUG(s) { if(!s_debug.status())s_debug.stamped(std::string()+s); }
 #endif
 
-#define LOG(s)    do { io::log(std::string()+s); DEBUG(s); } while (0)
-#define STATUS(s) do { setproctitle("%s", (std::string()+s).c_str()); } while (0)
-#define NOP       if(0){}
+#ifdef NOSTATUS
+#define STATUS(s)
+#else
+#define STATUS(s) { setproctitle("%s", (std::string()+s).c_str()); }
+#endif
+
+//???#define NOP       if(0){}
 
 #endif

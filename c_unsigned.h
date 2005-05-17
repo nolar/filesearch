@@ -1,6 +1,7 @@
 #ifndef _FILESEARCH_OBJECTS_UNSIGNED_
 #define _FILESEARCH_OBJECTS_UNSIGNED_
 
+#include <string>
 #include "c_object.h"
 
 class c_unsigned : public c_object
@@ -18,9 +19,20 @@ public:
 
 	unsigned get ();
 	void set (unsigned value);
+	std::string ascii (int pad = 0);
 
+	c_unsigned & operator= (const c_unsigned & right);
+	c_unsigned & operator= (const   unsigned   value);
 	bool operator== (const c_unsigned & right) const;
+	bool operator!= (const c_unsigned & right) const;
 	bool operator<  (const c_unsigned & right) const;
+	bool operator<= (const c_unsigned & right) const;
+	bool operator>  (const c_unsigned & right) const;
+	bool operator>= (const c_unsigned & right) const;
+	c_unsigned operator* (const c_unsigned & right) const;
+	c_unsigned operator* (const   unsigned   value) const;
+	c_unsigned operator+ (const c_unsigned & right) const;
+	c_unsigned operator+ (const   unsigned   value) const;
 };
 
 #endif

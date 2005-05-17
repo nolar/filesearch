@@ -23,8 +23,6 @@ public:
 	virtual void stream_getdata (      void * buffer, t_object_size size) const;
 	virtual void stream_setdata (const void * buffer, t_object_size size);
 
-	bool operator== (const c_stamp & right) const;
-
 	int year ();
 	int month ();
 	int day ();
@@ -32,6 +30,10 @@ public:
 	int minute ();
 	int second ();
 	time_t unixtime ();
+	std::string ascii (std::string format);
+
+	bool operator== (const c_stamp & right) const;
+
 };
 
 #endif

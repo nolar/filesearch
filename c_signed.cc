@@ -41,13 +41,52 @@ void c_signed::set (signed value)
 	f_value = value;
 }
 
+std::string c_signed::ascii (int pad)
+{
+	return _sprintf("%*d", pad, f_value); 
+}
+
+
+
+
+c_signed & c_signed::operator= (const c_signed & right)
+{
+	f_value = right.f_value;
+	return *this;
+}
+
+c_signed & c_signed::operator= (const signed value)
+{
+	f_value = value;
+	return *this;
+}
 
 bool c_signed::operator== (const c_signed & right) const
 {
 	return f_value == right.f_value;
 }
 
+bool c_signed::operator!= (const c_signed & right) const
+{
+	return f_value != right.f_value;
+}
+
 bool c_signed::operator<  (const c_signed & right) const
 {
 	return f_value < right.f_value;
+}
+
+bool c_signed::operator<= (const c_signed & right) const
+{
+	return f_value <= right.f_value;
+}
+
+bool c_signed::operator>  (const c_signed & right) const
+{
+	return f_value > right.f_value;
+}
+
+bool c_signed::operator>= (const c_signed & right) const
+{
+	return f_value >= right.f_value;
 }

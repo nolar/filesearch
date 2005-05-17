@@ -17,26 +17,35 @@
 #include <stack>
 #include <libsmbclient.h>
 #include <sys/time.h>
+
 #include "config.h"
-#include "typedefs.h"		    
+#include "globals.h"
+//#include "typedefs.h"
 #include "e_samba.h"
 #include "options.h"
-#include "io.h"
-#include "convert.h"
+//#include "io.h"
+//#include "convert.h"
 
-t_ipaddr    address   ;
-t_path      rootpath  ;
-t_string    username  ;
-t_string    password  ;
-t_string    workgroup ;
-t_string    selfname  ;
-t_timeout   timeout   ;
-t_depth     depth     ;
-t_ipc_vec   excludes  ;
+#include "c_string.h"
+#include "c_path.h"
+#include "c_ipaddr.h"
+#include "c_unsigned.h"
+#include "c_signed.h"
+#include "c_stream.h"
+
+c_ipaddr    address   ;
+c_path      rootpath  ;
+c_string    username  ;
+c_string    password  ;
+c_string    workgroup ;
+c_string    selfname  ;
+c_unsigned  timeout   ;
+c_unsigned  depth     ;
+//!!!t_ipc_vec   excludes  ;
 
 SMBCCTX * ctx = NULL;
 
-typedef std::stack< std::pair<t_path,t_depth> >  t_pathstack;
+typedef std::stack< std::pair<c_path,c_unsigned> >  t_pathstack;
 t_pathstack pathstack;
 
 
@@ -50,6 +59,7 @@ void auth_fn (const char *server, const char *share, char *_workgroup, int wgmax
 
 
 
+/*
 std::vector<std::string> formate_resource (std::string path)
 {
 	std::vector<std::string> result;
@@ -93,41 +103,45 @@ std::vector<std::string> formate_leave (std::string path)
 	result.push_back(options::action_code_for_leave);
 	result.push_back(path.empty()?"/":path);
 	return result;
-}
+}*/
 
 int main(int argc, char ** argv, char ** env) {
 	int exitcode = 0;
 	try
 	{
+		s_log.fd(1);
+		s_debug.fd(2);
+		c_stream s_task(0);
+		c_stream s_data(3);
 		// получение параметров вызова программы и занесение их в переменные
 		DEBUG("Getting initial parameters for scanning.");
-		t_stream_status status;
 		timeval timer;
 		timer.tv_sec  = options::timeout_params_sec;
 		timer.tv_usec = options::timeout_params_usec;
-		t_ipc_map task = io::readmap(io::fd_task, &timer, &status, options::ipc_terminator, options::ipc_assign, true, true);
-//!!!		if (task.size() < 8) throw e_io("Can not read required number of parameters (need 8).");
+		c_stream::t_map task = s_task.read_map(&timer);
 		DEBUG("Reading of parameters finished with status "+io::sstatus2print(status)+". Starting to parse them.");
-		address    = convert::ipcval2ipaddr   (task[ipc_code_ipaddr   ]);
-		rootpath   = convert::ipcval2path     (task[ipc_code_root     ]);
-		username   = convert::ipcval2string   (task[ipc_code_username ]); if (username.empty()) username = options::smb_guestusername;
-		password   = convert::ipcval2string   (task[ipc_code_password ]);
-		workgroup  = convert::ipcval2string   (task[ipc_code_workgroup]);
-		selfname   = convert::ipcval2string   (task[ipc_code_selfname ]);
-		timeout    = convert::ipcval2timeout  (task[ipc_code_timeout  ]); timeout *= 1000;
-		depth      = convert::ipcval2depth    (task[ipc_code_depth    ]);
+		if (dynamic_cast<c_ipaddr  *>(task[ipc_code_ipaddr   ])) address   = *dynamic_cast<c_ipaddr  *>(task[ipc_code_ipaddr   ]); else throw e_basic("Can not get ip address.");
+		if (dynamic_cast<c_path    *>(task[ipc_code_rootpath ])) rootpath  = *dynamic_cast<c_path    *>(task[ipc_code_rootpath ]); else throw e_basic("Can not get root path.");
+		if (dynamic_cast<c_string  *>(task[ipc_code_username ])) username  = *dynamic_cast<c_string  *>(task[ipc_code_username ]); else throw e_basic("Can not get user name.");
+		if (dynamic_cast<c_string  *>(task[ipc_code_password ])) password  = *dynamic_cast<c_string  *>(task[ipc_code_password ]); else throw e_basic("Can not get password.");
+		if (dynamic_cast<c_string  *>(task[ipc_code_workgroup])) workgroup = *dynamic_cast<c_string  *>(task[ipc_code_workgroup]); else throw e_basic("Can not get self workgroup.");
+		if (dynamic_cast<c_string  *>(task[ipc_code_selfname ])) selfname  = *dynamic_cast<c_string  *>(task[ipc_code_selfname ]); else throw e_basic("Can not get self name.");
+		if (dynamic_cast<c_unsigned*>(task[ipc_code_timeout  ])) timeout   = *dynamic_cast<c_unsigned*>(task[ipc_code_timeout  ]); else throw e_basic("Can not get timeout.");
+		if (dynamic_cast<c_unsigned*>(task[ipc_code_depth    ])) depth     = *dynamic_cast<c_unsigned*>(task[ipc_code_depth    ]); else throw e_basic("Can not get depth.");
+		if (username.empty()) username = options::smb_guestusername;
+		timeout = timeout * 1000;
 		DEBUG("Successfully got the following parameters for scanning:");
-		DEBUG("address='"  +convert::ipaddr2print (address  )+"'"   );
-		DEBUG("rootpath='" +convert::path2print   (rootpath )+"'"   );
-		DEBUG("username='" +convert::string2print (username )+"'"   );
-		DEBUG("password='" +convert::string2print (password )+"'"   );
-		DEBUG("workgroup='"+convert::string2print (workgroup)+"'"   );
-		DEBUG("selfname='" +convert::string2print (selfname )+"'"   );
-		DEBUG("timeout="   +convert::timeout2print(timeout  )+"msec");
-		DEBUG("depth="     +convert::depth2print  (depth    )       );
-		DEBUG("Reading list of exclusions for scanning.");
-		excludes = io::readvec(io::fd_task, &timer, &status, options::ipc_terminator, true, true);
-		DEBUG("Successfully got "+convert::si2str(excludes.size())+" exclusions for scanning.");
+		DEBUG("address='"  +address.ascii() +"'"   );
+		DEBUG("rootpath='" +rootpath.ascii()+"'"   );
+		DEBUG("username='" +username.get()  +"'"   );
+		DEBUG("password='" +password.get()  +"'"   );
+		DEBUG("workgroup='"+workgroup.get() +"'"   );
+		DEBUG("selfname='" +selfname.get()  +"'"   );
+		DEBUG("timeout="   +timeout.ascii() +"msec");
+		DEBUG("depth="     +depth.ascii()          );
+//!!!		DEBUG("Reading list of exclusions for scanning.");
+//!!!		excludes = io::readvec(io::fd_task, &timer, &status, options::ipc_terminator, true, true);
+//!!!		DEBUG("Successfully got "+convert::si2str(excludes.size())+" exclusions for scanning.");
 		DEBUG("Finished reading task.");
 		// initializing smbclient
 		DEBUG("Creating smbc context.");
@@ -138,7 +152,7 @@ int main(int argc, char ** argv, char ** env) {
 		}
 		DEBUG("Created smbc context.");
 		ctx->debug = 0;
-		ctx->timeout = timeout;
+		ctx->timeout = timeout.get();
 		ctx->netbios_name = strdup(selfname.c_str());
 		ctx->workgroup = strdup(workgroup.c_str());
 		ctx->callbacks.auth_fn = auth_fn;
@@ -149,21 +163,21 @@ int main(int argc, char ** argv, char ** env) {
 			throw e_samba("Can not initialize smbclient.", strerror(errno));
 		}
 		DEBUG("Initialized smbc context.");
-		ctx->timeout = timeout;
+		ctx->timeout = timeout.get();
 		// putting initial path to stack
 		t_pathstack::value_type t;
 		t.second = 1;
 		pathstack.push(t);
-		std::string rootpathstr = std::string("smb://") + convert::ipaddr2print(address) + (rootpath.empty()?"":"/") + convert::path2ipc(rootpath);
+		std::string rootpathstr = std::string("smb://") + address.ascii() + (rootpath.empty()?"":"/") + rootpath.ascii();
 		//
 		DEBUG("Starting recursive scan in '"+rootpathstr+"'.");
 		while (!pathstack.empty())
 		{
 			// getting path from stack
-			t_path currpath = pathstack.top().first;
-			t_depth level = pathstack.top().second;
+			c_path  currpath = pathstack.top().first;
+			c_unsigned level = pathstack.top().second;
 			pathstack.pop();
-			std::string currpathstr = (currpath.empty()?"":"/") + convert::path2ipc(currpath);
+			std::string currpathstr = (currpath.empty()?"":"/") + currpath.ascii();
 			std::string openpathstr = rootpathstr + currpathstr;
 			//
 			DEBUG("Opening path '"+openpathstr+"' for directory listing.");
@@ -173,7 +187,8 @@ int main(int argc, char ** argv, char ** env) {
 				LOG("Could not open path '"+openpathstr+"': "+strerror(errno));
 			} else {
 				DEBUG("Path '"+openpathstr+"' opened.");
-				io::writemap(io::fd_data, NULL, NULL, options::terminator, formate_enter(currpathstr));
+//!!!				s_data.write_map();
+//!!!				io::writemap(io::fd_data, NULL, NULL, options::terminator, formate_enter(currpathstr));
 				smbc_dirent * dirent;
 				DEBUG("Listing its entries.");
 				while (level <= depth && (dirent = ctx->readdir(ctx, dir)) != NULL)
@@ -202,27 +217,27 @@ int main(int argc, char ** argv, char ** env) {
 							} else {
 								DEBUG("Stat successfull.");
 								statok = true;
-								if (container)
-								io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_dir (currpathstr + "/" + name, st));
-								else
-								io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_file(currpathstr + "/" + name, st));
+//!!!								if (container)
+//!!!								io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_dir (currpathstr + "/" + name, st));
+//!!!								else
+//!!!								io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_file(currpathstr + "/" + name, st));
 							}
 						} else {
 								statok = true;
-								io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_resource(currpathstr + "/" + name));
+//!!!								io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_resource(currpathstr + "/" + name));
 						}
 						if (container && statok && level < depth)
 						{
 							DEBUG("Putting recursible item '"+path+"' for future scanning.");
 							t_pathstack::value_type t;
-							t.first = currpath; t.first.push_back(name);
+							t.first = currpath; t.first.add(name);
 							t.second = level+1;
 							pathstack.push(t);
 						}
 						DEBUG("Work with entry finished.");
 					}
 				}
-				io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_leave(currpathstr));
+//!!!				io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_leave(currpathstr));
 				DEBUG("Closing dir '"+openpathstr+"'.");
 				ctx->closedir(ctx, dir);
 				DEBUG("Closed.");

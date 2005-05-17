@@ -1,6 +1,7 @@
 #ifndef _FILESEARCH_OBJECTS_SIGNED_
 #define _FILESEARCH_OBJECTS_SIGNED_
 
+#include <string>
 #include "c_object.h"
 
 class c_signed : public c_object
@@ -18,9 +19,16 @@ public:
 
 	signed get ();
 	void set (signed value);
+	std::string ascii (int pad = 0);
 
+	c_signed & operator= (const c_signed & right);
+	c_signed & operator= (const   signed   value);
 	bool operator== (const c_signed & right) const;
+	bool operator!= (const c_signed & right) const;
 	bool operator<  (const c_signed & right) const;
+	bool operator<= (const c_signed & right) const;
+	bool operator>  (const c_signed & right) const;
+	bool operator>= (const c_signed & right) const;
 };
 
 #endif

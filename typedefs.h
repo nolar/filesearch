@@ -19,8 +19,8 @@ typedef std::vector<std::string> t_path;
 
 
 
-typedef std::string                    t_ipc_code ;
-typedef std::string                    t_ipc_val  ;
+typedef c_unsigned                     t_ipc_code ;
+typedef c_string                       t_ipc_val  ;
 typedef std::map<t_ipc_code,t_ipc_val> t_ipc_map  ;
 typedef std::vector<t_ipc_val>         t_ipc_vec  ;
 

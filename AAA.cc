@@ -23,7 +23,7 @@ int main ()
 		int fd = open("DATA", O_RDWR|O_CREAT);
 		if (fd == -1) cout << "Error:" << strerror(errno);
 		else {
-			c_stream s(fd);
+			c_stream s(0);
 
 /*			do {
 				c_object * o = s.read_object();
@@ -47,6 +47,7 @@ int main ()
 			m[33] = new c_stamp(time(NULL));
 			s.write_map(m);*/
 
+			s.set_max_timeout(3,0);
 			std::map<c_mapkey,c_object*> m = s.read_map();
 			cout << "COUNT=" << m.size() << endl;
 			cout << "KEYS:";
@@ -55,12 +56,17 @@ int main ()
 			cout << endl;
 			c_string * v = dynamic_cast<c_string*>(m[10]);
 			cout << "S=" << (v?v->get():"NULL") << endl;
+			cout << "st=" << s.status() << endl;
 		}
-		close(fd);
+//		close(fd);
 	}
 	catch (std::exception &e)
 	{
 		cout << "ES: " << e.what() << endl;
+	}
+	catch (...)
+	{
+		cout << "EX: other " << endl;
 	}
 }
 

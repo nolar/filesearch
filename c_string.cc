@@ -36,7 +36,7 @@ void c_string::stream_setdata (const void * buffer, t_object_size size)
 
 
 
-std::string c_string::get ()
+std::string c_string::get () const
 {
 	return f_value;
 }
@@ -45,6 +45,18 @@ void c_string::set (std::string value)
 {
 	f_value = value;
 }
+
+const char * c_string::c_str () const
+{
+	return f_value.c_str();
+}
+
+bool c_string::empty () const
+{
+	return f_value.empty();
+}
+
+
 
 
 bool c_string::operator== (const c_string & right) const
