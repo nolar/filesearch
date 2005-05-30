@@ -19,6 +19,7 @@ public:
 	c_stamp (int a_year, int a_month, int a_day, int a_hour = 0, int a_minute = 0, int a_second = 0);
 	c_stamp (time_t value);
 
+	virtual bool stream_vary () const;
 	virtual t_object_size stream_size () const;
 	virtual void stream_getdata (      void * buffer, t_object_size size) const;
 	virtual void stream_setdata (const void * buffer, t_object_size size);

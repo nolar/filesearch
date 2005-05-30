@@ -1,3 +1,4 @@
 #!/bin/sh
 
-./filesearch-smb <filesearch-smb.test.data 3>filesearch-smb.test.result 2>filesearch-smb.test.log 1>filesearch-smb.test.debug
+#./filesearch-smb <filesearch-smb.test.data 3>filesearch-smb.test.result 2>filesearch-smb.test.log 1>filesearch-smb.test.debug
+./filesearch-smb <filesearch-test-smbdata 3>filesearch-smb.test.result 2>filesearch-smb.test.log 1>filesearch-smb.test.debug

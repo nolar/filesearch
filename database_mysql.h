@@ -2,8 +2,9 @@
 #define _FILESEARCH_DATABASE_MYSQL_
 
 #include "database.h"
-#include "e_database.h"
 #include <mysql.h>
+
+usined namespace std; //!!!!!!!!
 
 class c_database_mysql : public c_database {
 private:
@@ -48,7 +49,7 @@ public:
 	virtual c_database * duplicate ();
 
 	// Functions to fethc basic data
-	virtual t_time     fetch_startup  ();
+	virtual c_stamp    fetch_startup  ();
 	virtual c_requests fetch_requests ();
 
 	// Functions to work with temporary per-process host/share status.
@@ -56,10 +57,10 @@ public:
 	virtual void status_renew (c_request request);
 	virtual void status_clean ();
 	//
-	virtual t_sqlid report_share (c_request request, string share);
-	virtual t_sqlid report_file  (c_request request, c_fileinfo fileinfo);
-	virtual void flush_shares (c_request request);
-	virtual void flush_files  (c_request request);
+	virtual c_unsigned report_share (c_request request, c_string share);
+	virtual c_unsigned report_file  (c_request request, c_fileinfo fileinfo);
+	virtual void       flush_shares (c_request request);
+	virtual void       flush_files  (c_request request);
 };
 
 #endif

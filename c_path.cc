@@ -2,16 +2,19 @@
 #include "c_path.h"
 
 c_path::c_path ()
-	: f_value()
+	: c_object
+	, f_value()
 {
 }
 
 c_path::c_path (char * value)
+	: c_object()
 {
 	f_value = _split(value, "/");
 }
 
 c_path::c_path (std::string value)
+	: c_object()
 {
 	f_value = _split(value, "/");
 }
@@ -20,6 +23,11 @@ c_path::c_path (std::string value)
 
 
 
+
+bool c_path::stream_vary () const
+{
+	return true;
+}
 
 t_object_size c_path::stream_size () const
 {
@@ -92,20 +100,20 @@ std::string c_path::basename ()
 	return f_value.size() ? f_value[f_value.size()-1] : std::string();
 }
 
-std::string c_path::dirname (bool raw)
+std::string c_path::dirname (bool heading_slash, bool empty_slash)
 {
 	std::string result;
-	if (!f_value.size()) result = raw ? "" : "/"; else
+	if (!f_value.size()) result = empty_slash ? "/" : ""; else
 	for (std::vector<std::string>::const_iterator i = f_value.begin(); (i+1) != f_value.end(); i++)
-		result = result + ((raw && result.empty()) ? "" : "/") + *i;
+		result = result + ((heading_slash || !result.empty()) ? "/" : "") + *i;
 	return result;
 }
 
-std::string c_path::ascii (bool raw)
+std::string c_path::ascii (bool heading_slash, bool empty_slash)
 {
 	std::string result;
-	if (!f_value.size()) result = raw ? "" : "/"; else
+	if (!f_value.size()) result = empty_slash ? "/" : ""; else
 	for (std::vector<std::string>::const_iterator i = f_value.begin(); i != f_value.end(); i++)
-		result = result + ((raw && result.empty()) ? "" : "/") + *i;
+		result = result + ((heading_slash || !result.empty()) ? "/" : "") + *i;
 	return result;
 }

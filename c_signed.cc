@@ -2,16 +2,23 @@
 #include "c_signed.h"
 
 c_signed::c_signed ()
-	: f_value()
+	: c_object()
+	, f_value()
 {
 }
 
 c_signed::c_signed (signed value)
-	: f_value(value)
+	: c_object()
+	, f_value(value)
 {
 }
 
 
+
+bool c_signed::stream_vary () const
+{
+	return false;
+}
 
 t_object_size c_signed::stream_size () const
 {

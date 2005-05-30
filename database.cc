@@ -15,7 +15,7 @@ void c_database::status_init ()
 	f_startup = fetch_startup();
 }
 
-void c_database::status_init (t_pident a_process, t_time a_startup)
+void c_database::status_init (c_unsigned a_process, c_stamp a_startup)
 {
 	f_process = a_process;
 	f_startup = a_startup;

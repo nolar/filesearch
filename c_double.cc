@@ -2,16 +2,23 @@
 #include "c_double.h"
 
 c_double::c_double ()
-	: f_value()
+	: c_object()
+	, f_value()
 {
 }
 
 c_double::c_double (double value)
-	: f_value(value)
+	: c_object()
+	, f_value(value)
 {
 }
 
 
+
+bool c_double::stream_vary () const
+{
+	return false;
+}
 
 t_object_size c_double::stream_size () const
 {

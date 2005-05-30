@@ -2,17 +2,24 @@
 #include "c_mapkey.h"
 
 c_mapkey::c_mapkey ()
-	: f_value()
+	: c_object()
+	, f_value()
 {
 }
 
 c_mapkey::c_mapkey (int value)
-	: f_value(value)
+	: c_object()
+	, f_value(value)
 {
 }
 
 
 
+
+bool c_mapkey::stream_vary () const
+{
+	return false;
+}
 
 t_object_size c_mapkey::stream_size () const
 {

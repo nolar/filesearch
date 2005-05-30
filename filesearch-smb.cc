@@ -8,30 +8,29 @@
  * (a) Sergei Vasilyev aka nolar 2005
  */
 
+#include <libsmbclient.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <iostream>
-#include <iomanip>
 #include <string>
 #include <vector>
 #include <stack>
-#include <libsmbclient.h>
+#include <queue>
+#include <exception>
 #include <sys/time.h>
+#include <errno.h>
 
 #include "config.h"
 #include "globals.h"
-//#include "typedefs.h"
+#include "c_stream.h"
+#include "e_basic.h"
 #include "e_samba.h"
-#include "options.h"
-//#include "io.h"
-//#include "convert.h"
 
+#include "c_signed.h"
+#include "c_unsigned.h"
 #include "c_string.h"
 #include "c_path.h"
 #include "c_ipaddr.h"
-#include "c_unsigned.h"
-#include "c_signed.h"
-#include "c_stream.h"
+#include "c_stamp.h"
 
 c_ipaddr    address   ;
 c_path      rootpath  ;
@@ -45,8 +44,8 @@ c_unsigned  depth     ;
 
 SMBCCTX * ctx = NULL;
 
-typedef std::stack< std::pair<c_path,c_unsigned> >  t_pathstack;
-t_pathstack pathstack;
+typedef std::queue< std::pair<c_path,c_unsigned> >  t_pathqueue;
+t_pathqueue pathqueue;
 
 
 
@@ -59,51 +58,51 @@ void auth_fn (const char *server, const char *share, char *_workgroup, int wgmax
 
 
 
-/*
-std::vector<std::string> formate_resource (std::string path)
+
+c_stream::t_map make_resource (const c_path & path)
 {
-	std::vector<std::string> result;
-	result.push_back(options::action_code_for_resource);
-	result.push_back(path.empty()?"/":path);
+	c_stream::t_map result;
+	result[ipc_data_action] = const_cast<c_object*>(dynamic_cast<const c_object*>(&action_resource));
+	result[ipc_data_path  ] = const_cast<c_object*>(dynamic_cast<const c_object*>(&path));
 	return result;
 }
 
-std::vector<std::string> formate_dir (std::string path, struct stat st)
+c_stream::t_map make_dir (const c_path & path, const c_stamp & ctime, const c_stamp & mtime)
 {
-	std::vector<std::string> result;
-	result.push_back(options::action_code_for_dir);
-	result.push_back(path.empty()?"/":path);
-	result.push_back(convert::time2system(st.st_ctime));
-	result.push_back(convert::time2system(st.st_mtime));
+	c_stream::t_map result;
+	result[ipc_data_action] = const_cast<c_object*>(dynamic_cast<const c_object*>(&action_dir));
+	result[ipc_data_path  ] = const_cast<c_object*>(dynamic_cast<const c_object*>(&path));
+	result[ipc_data_ctime ] = const_cast<c_object*>(dynamic_cast<const c_object*>(&ctime));
+	result[ipc_data_mtime ] = const_cast<c_object*>(dynamic_cast<const c_object*>(&mtime));
 	return result;
 }
 
-std::vector<std::string> formate_file (std::string path, struct stat st)
+c_stream::t_map make_file (const c_path & path, const c_unsigned & size, const c_stamp & ctime, const c_stamp & mtime)
 {
-	std::vector<std::string> result;
-	result.push_back(options::action_code_for_file);
-	result.push_back(path.empty()?"/":path);
-	result.push_back(convert::size2system(st.st_size ));
-	result.push_back(convert::time2system(st.st_ctime));
-	result.push_back(convert::time2system(st.st_mtime));
+	c_stream::t_map result;
+	result[ipc_data_action] = const_cast<c_object*>(dynamic_cast<const c_object*>(&action_file));
+	result[ipc_data_path  ] = const_cast<c_object*>(dynamic_cast<const c_object*>(&path));
+	result[ipc_data_size  ] = const_cast<c_object*>(dynamic_cast<const c_object*>(&size));
+	result[ipc_data_ctime ] = const_cast<c_object*>(dynamic_cast<const c_object*>(&ctime));
+	result[ipc_data_mtime ] = const_cast<c_object*>(dynamic_cast<const c_object*>(&mtime));
 	return result;
 }
 
-std::vector<std::string> formate_enter (std::string path)
+c_stream::t_map make_enter (const c_path & path)
 {
-	std::vector<std::string> result;
-	result.push_back(options::action_code_for_enter);
-	result.push_back(path.empty()?"/":path);
+	c_stream::t_map result;
+	result[ipc_data_action] = const_cast<c_object*>(dynamic_cast<const c_object*>(&action_enter));
+	result[ipc_data_path  ] = const_cast<c_object*>(dynamic_cast<const c_object*>(&path));
 	return result;
 }
 
-std::vector<std::string> formate_leave (std::string path)
+c_stream::t_map make_leave (const c_path & path)
 {
-	std::vector<std::string> result;
-	result.push_back(options::action_code_for_leave);
-	result.push_back(path.empty()?"/":path);
+	c_stream::t_map result;
+	result[ipc_data_action] = const_cast<c_object*>(dynamic_cast<const c_object*>(&action_leave));
+	result[ipc_data_path  ] = const_cast<c_object*>(dynamic_cast<const c_object*>(&path));
 	return result;
-}*/
+}
 
 int main(int argc, char ** argv, char ** env) {
 	int exitcode = 0;
@@ -111,28 +110,25 @@ int main(int argc, char ** argv, char ** env) {
 	{
 		s_log.fd(1);
 		s_debug.fd(2);
-		c_stream s_task(0);
-		c_stream s_data(3);
+		c_stream s_task(0); s_task.set_min_timeout(default_timeout_task__sec, default_timeout_task__usec);
+		c_stream s_data(3); s_data.set_min_timeout(1); // should be options
 		// получение параметров вызова программы и занесение их в переменные
 		DEBUG("Getting initial parameters for scanning.");
-		timeval timer;
-		timer.tv_sec  = options::timeout_params_sec;
-		timer.tv_usec = options::timeout_params_usec;
-		c_stream::t_map task = s_task.read_map(&timer);
-		DEBUG("Reading of parameters finished with status "+io::sstatus2print(status)+". Starting to parse them.");
-		if (dynamic_cast<c_ipaddr  *>(task[ipc_code_ipaddr   ])) address   = *dynamic_cast<c_ipaddr  *>(task[ipc_code_ipaddr   ]); else throw e_basic("Can not get ip address.");
-		if (dynamic_cast<c_path    *>(task[ipc_code_rootpath ])) rootpath  = *dynamic_cast<c_path    *>(task[ipc_code_rootpath ]); else throw e_basic("Can not get root path.");
-		if (dynamic_cast<c_string  *>(task[ipc_code_username ])) username  = *dynamic_cast<c_string  *>(task[ipc_code_username ]); else throw e_basic("Can not get user name.");
-		if (dynamic_cast<c_string  *>(task[ipc_code_password ])) password  = *dynamic_cast<c_string  *>(task[ipc_code_password ]); else throw e_basic("Can not get password.");
-		if (dynamic_cast<c_string  *>(task[ipc_code_workgroup])) workgroup = *dynamic_cast<c_string  *>(task[ipc_code_workgroup]); else throw e_basic("Can not get self workgroup.");
-		if (dynamic_cast<c_string  *>(task[ipc_code_selfname ])) selfname  = *dynamic_cast<c_string  *>(task[ipc_code_selfname ]); else throw e_basic("Can not get self name.");
-		if (dynamic_cast<c_unsigned*>(task[ipc_code_timeout  ])) timeout   = *dynamic_cast<c_unsigned*>(task[ipc_code_timeout  ]); else throw e_basic("Can not get timeout.");
-		if (dynamic_cast<c_unsigned*>(task[ipc_code_depth    ])) depth     = *dynamic_cast<c_unsigned*>(task[ipc_code_depth    ]); else throw e_basic("Can not get depth.");
-		if (username.empty()) username = options::smb_guestusername;
+		c_stream::t_map task = s_task.read_map(NULL);
+		DEBUG("Reading of parameters finished with status "+s_task.status_text()+". Starting to parse them.");
+		if (dynamic_cast<c_ipaddr  *>(task[ipc_task_ipaddr   ])) address   = *dynamic_cast<c_ipaddr  *>(task[ipc_task_ipaddr   ]); else throw e_basic("Can not get ip address.");
+		if (dynamic_cast<c_path    *>(task[ipc_task_rootpath ])) rootpath  = *dynamic_cast<c_path    *>(task[ipc_task_rootpath ]); else throw e_basic("Can not get root path.");
+		if (dynamic_cast<c_string  *>(task[ipc_task_username ])) username  = *dynamic_cast<c_string  *>(task[ipc_task_username ]); else throw e_basic("Can not get user name.");
+		if (dynamic_cast<c_string  *>(task[ipc_task_password ])) password  = *dynamic_cast<c_string  *>(task[ipc_task_password ]); else throw e_basic("Can not get password.");
+		if (dynamic_cast<c_string  *>(task[ipc_task_workgroup])) workgroup = *dynamic_cast<c_string  *>(task[ipc_task_workgroup]); else throw e_basic("Can not get self workgroup.");
+		if (dynamic_cast<c_string  *>(task[ipc_task_selfname ])) selfname  = *dynamic_cast<c_string  *>(task[ipc_task_selfname ]); else throw e_basic("Can not get self name.");
+		if (dynamic_cast<c_unsigned*>(task[ipc_task_timeout  ])) timeout   = *dynamic_cast<c_unsigned*>(task[ipc_task_timeout  ]); else throw e_basic("Can not get timeout.");
+		if (dynamic_cast<c_unsigned*>(task[ipc_task_depth    ])) depth     = *dynamic_cast<c_unsigned*>(task[ipc_task_depth    ]); else throw e_basic("Can not get depth.");
+		if (username.empty()) username = default_username_smb;
 		timeout = timeout * 1000;
 		DEBUG("Successfully got the following parameters for scanning:");
 		DEBUG("address='"  +address.ascii() +"'"   );
-		DEBUG("rootpath='" +rootpath.ascii()+"'"   );
+		DEBUG("rootpath='" +rootpath.ascii(true, true)+"'"   );
 		DEBUG("username='" +username.get()  +"'"   );
 		DEBUG("password='" +password.get()  +"'"   );
 		DEBUG("workgroup='"+workgroup.get() +"'"   );
@@ -164,31 +160,31 @@ int main(int argc, char ** argv, char ** env) {
 		}
 		DEBUG("Initialized smbc context.");
 		ctx->timeout = timeout.get();
-		// putting initial path to stack
-		t_pathstack::value_type t;
+		// putting initial path to queue
+		t_pathqueue::value_type t;
 		t.second = 1;
-		pathstack.push(t);
-		std::string rootpathstr = std::string("smb://") + address.ascii() + (rootpath.empty()?"":"/") + rootpath.ascii();
+		pathqueue.push(t);
+//!!!		std::string rootpathstr = std::string("smb://") + address.ascii() + (rootpath.empty()?"":"/") + rootpath.ascii(true);
+		std::string prefix = std::string("smb://") + address.ascii() + rootpath.ascii(true, false);
 		//
-		DEBUG("Starting recursive scan in '"+rootpathstr+"'.");
-		while (!pathstack.empty())
+		DEBUG("Starting recursive scan in '"+prefix+"'.");
+		while (!pathqueue.empty())
 		{
-			// getting path from stack
-			c_path  currpath = pathstack.top().first;
-			c_unsigned level = pathstack.top().second;
-			pathstack.pop();
-			std::string currpathstr = (currpath.empty()?"":"/") + currpath.ascii();
-			std::string openpathstr = rootpathstr + currpathstr;
+			// getting path from queue
+			c_path  currpath = pathqueue.front().first;
+			c_unsigned level = pathqueue.front().second;
+			pathqueue.pop();
+//!!!			std::string currpathstr = (currpath.empty()?"":"/") + currpath.ascii(true);
+//!!!			std::string openpathstr = rootpathstr + currpathstr;
 			//
-			DEBUG("Opening path '"+openpathstr+"' for directory listing.");
-			SMBCFILE * dir = ctx->opendir(ctx, openpathstr.c_str());
+			DEBUG("Opening path '"+prefix+currpath.ascii(true, false)+"' for directory listing.");
+			SMBCFILE * dir = ctx->opendir(ctx, (prefix+currpath.ascii(true, false)).c_str());
 			if (!dir)
 			{
-				LOG("Could not open path '"+openpathstr+"': "+strerror(errno));
+				LOG("Could not open path '"+prefix+currpath.ascii(true, false)+"': "+strerror(errno));
 			} else {
-				DEBUG("Path '"+openpathstr+"' opened.");
-//!!!				s_data.write_map();
-//!!!				io::writemap(io::fd_data, NULL, NULL, options::terminator, formate_enter(currpathstr));
+				DEBUG("Path '"+prefix+currpath.ascii(true, false)+"' opened.");
+				s_data.write_map(make_enter(currpath), NULL);
 				smbc_dirent * dirent;
 				DEBUG("Listing its entries.");
 				while (level <= depth && (dirent = ctx->readdir(ctx, dir)) != NULL)
@@ -197,7 +193,8 @@ int main(int argc, char ** argv, char ** env) {
 					if ((name != "..") && (name != "."))
 					{
 						DEBUG("Got entry '"+name+"'.");
-						std::string path = openpathstr + "/" + name;
+						c_path path = currpath; path.add(name);
+//!!!						std::string path = openpathstr + "/" + name;
 						bool container = (dirent->smbc_type == SMBC_DIR       ) ||
 								 (dirent->smbc_type == SMBC_FILE_SHARE) ||
 								 (dirent->smbc_type == SMBC_SERVER    ) ||
@@ -209,36 +206,39 @@ int main(int argc, char ** argv, char ** env) {
 						if (statable)
 						{
 							struct stat st;
-							DEBUG("Stating '"+path+"'.");
-							int stcode = ctx->stat(ctx, path.c_str(), &st);
+							DEBUG("Stating '"+prefix+path.ascii(true, false)+"'.");
+							int stcode = ctx->stat(ctx, (prefix+path.ascii(true, false)).c_str(), &st);
 							if (stcode == -1)
 							{
 								DEBUG("Stat failed: "+strerror(errno));
 							} else {
 								DEBUG("Stat successfull.");
+								c_stamp ctime(st.st_ctime);
+								c_stamp mtime(st.st_mtime);
+								c_unsigned size(st.st_size);
 								statok = true;
-//!!!								if (container)
-//!!!								io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_dir (currpathstr + "/" + name, st));
-//!!!								else
-//!!!								io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_file(currpathstr + "/" + name, st));
+								if (container)
+								s_data.write_map(make_dir(path, ctime, mtime));
+								else
+								s_data.write_map(make_file(path, size, ctime, mtime));
 							}
 						} else {
 								statok = true;
-//!!!								io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_resource(currpathstr + "/" + name));
+								s_data.write_map(make_resource(path));
 						}
 						if (container && statok && level < depth)
 						{
-							DEBUG("Putting recursible item '"+path+"' for future scanning.");
-							t_pathstack::value_type t;
-							t.first = currpath; t.first.add(name);
+							DEBUG("Putting recursible item '"+prefix+path.ascii(true, false)+"' for future scanning.");
+							t_pathqueue::value_type t;
+							t.first = path;
 							t.second = level+1;
-							pathstack.push(t);
+							pathqueue.push(t);
 						}
 						DEBUG("Work with entry finished.");
 					}
 				}
-//!!!				io::writeblock(io::fd_data, NULL, NULL, options::terminator, formate_leave(currpathstr));
-				DEBUG("Closing dir '"+openpathstr+"'.");
+				s_data.write_map(make_leave(currpath), NULL);
+				DEBUG("Closing dir '"+prefix+currpath.ascii(true, false)+"'.");
 				ctx->closedir(ctx, dir);
 				DEBUG("Closed.");
 			}
@@ -253,7 +253,7 @@ int main(int argc, char ** argv, char ** env) {
 		LOG("Exception: "+e.what());
 		exitcode = 1;
 	}
-	catch (exception &e)
+	catch (std::exception &e)
 	{
 		LOG("Exception: "+e.what());
 		exitcode = 1;

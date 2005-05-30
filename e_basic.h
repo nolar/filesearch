@@ -2,7 +2,6 @@
 #define _FILESEARCH_EXCEPTIONS_BASIC_
 
 #include <string>
-#include <exception>
 #include "config.h"
 
 class e_basic

@@ -8,10 +8,6 @@
 #include "c_object.h"
 #include "c_mapkey.h"
 
-enum t_object_type {
-	ot_null, ot_stopsign, ot_mapkey,
-	ot_signed, ot_unsigned, ot_double, ot_flag, ot_stamp, ot_string, ot_ipaddr, ot_path
-	};
 
 class c_stream
 {
@@ -23,6 +19,20 @@ public:
 		} t_status;
 	typedef std::vector<c_object*> t_vector;
 	typedef std::map<c_mapkey,c_object*> t_map;
+	typedef unsigned char t_object_type;
+	static const t_object_type ot_null;
+	static const t_object_type ot_stopsign;
+	static const t_object_type ot_mapkey;
+	static const t_object_type ot_signed;
+	static const t_object_type ot_unsigned;
+	static const t_object_type ot_double;
+	static const t_object_type ot_flag;
+	static const t_object_type ot_stamp;
+	static const t_object_type ot_string;
+	static const t_object_type ot_ipaddr;
+	static const t_object_type ot_path;
+	static const t_object_type ot_action;
+	static const t_object_type ot_protocol;
 private:
 	bool     f_fd_defined;
 	t_fd     f_fd;
@@ -31,13 +41,11 @@ private:
 	bool f_have_min_timeout; timeval f_min_timeout;
 	bool f_have_max_timeout; timeval f_max_timeout;
 protected:
-	std::string _log_time_format;
-	unsigned    _log_pid_size;
 	bool _timing_start  (timeval * timer, timeval * deadline);
 	bool _timing_cycle  (timeval * deadline, timeval * timeout);
 	bool _timing_finish (timeval * timer, timeval * deadline);
-	void _read  (void * buffer, t_object_size size, timeval * timer = NULL);
-	void _write (void * buffer, t_object_size size, timeval * timer = NULL);
+	void _read  (      void * buffer, t_object_size size, timeval * timer = NULL);
+	void _write (const void * buffer, t_object_size size, timeval * timer = NULL);
 public:
 	// constructors and destructor
 	c_stream ();
@@ -45,18 +53,19 @@ public:
 	virtual ~c_stream ();
 
 	//
-	t_fd fd ();
+	t_fd fd () const;
 	void fd (t_fd fd);
-	t_status status ();
-	t_error  error  ();
+	t_status status () const;
+	t_error  error  () const;
+	const char * status_text () const;
 	void set_min_timeout (timeval value);
 	void set_max_timeout (timeval value);
 	void set_min_timeout (long sec, long usec = 0);
 	void set_max_timeout (long sec, long usec = 0);
 	void unset_min_timeout ();
 	void unset_max_timeout ();
-	bool have_min_timeout ();
-	bool have_max_timeout ();
+	bool have_min_timeout () const;
+	bool have_max_timeout () const;
 
 	//
 	static t_object_type object_typeof (c_object * object);

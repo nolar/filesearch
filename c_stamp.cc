@@ -2,7 +2,8 @@
 #include "c_stamp.h"
 
 c_stamp::c_stamp ()
-	: f_year()
+	: c_object()
+	, f_year()
 	, f_month ()
 	, f_day ()
 	, f_hour ()
@@ -12,7 +13,8 @@ c_stamp::c_stamp ()
 }
 
 c_stamp::c_stamp (int a_year, int a_month, int a_day, int a_hour, int a_minute, int a_second)
-	: f_year(a_year)
+	: c_object()
+	, f_year(a_year)
 	, f_month (a_month)
 	, f_day (a_day)
 	, f_hour (a_hour)
@@ -22,6 +24,7 @@ c_stamp::c_stamp (int a_year, int a_month, int a_day, int a_hour, int a_minute, 
 }
 
 c_stamp::c_stamp (time_t value)
+	: c_object()
 {
 	struct tm t;
 	gmtime_r(&value, &t);
@@ -35,6 +38,11 @@ c_stamp::c_stamp (time_t value)
 
 
 
+
+bool c_stamp::stream_vary () const
+{
+	return false;
+}
 
 t_object_size c_stamp::stream_size () const
 {

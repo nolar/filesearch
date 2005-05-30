@@ -2,16 +2,23 @@
 #include "c_unsigned.h"
 
 c_unsigned::c_unsigned ()
-	: f_value()
+	: c_object
+	, f_value()
 {
 }
 
 c_unsigned::c_unsigned (unsigned value)
-	: f_value(value)
+	: c_object
+	, f_value(value)
 {
 }
 
 
+
+bool c_unsigned::stream_vary () const
+{
+	return false;
+}
 
 t_object_size c_unsigned::stream_size () const
 {

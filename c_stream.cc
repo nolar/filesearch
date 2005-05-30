@@ -6,6 +6,7 @@
 #include <sys/select.h>
 #include <memory>
 
+#include "globals.h"
 #include "c_stream.h"
 #include "c_object.h"
 #include "c_stopsign.h"
@@ -18,6 +19,9 @@
 #include "c_string.h"
 #include "c_ipaddr.h"
 #include "c_path.h"
+#include "c_action.h"
+#include "c_protocol.h"
+
 //!!! DEBUG
 #include <iostream>
 #include <iomanip>
@@ -29,8 +33,24 @@ using namespace std;
 
 c_stream s_log  ;
 c_stream s_debug;
-std::string c_stream::_log_time_format = "%Y-%m-%d %H:%M:%S";
-unsigned    c_stream::_log_pid_size = 5;
+
+
+
+
+const c_stream::t_object_type c_stream::ot_null		= ~0;
+const c_stream::t_object_type c_stream::ot_stopsign	=  0;
+const c_stream::t_object_type c_stream::ot_mapkey	=  1;
+const c_stream::t_object_type c_stream::ot_signed	=  2;
+const c_stream::t_object_type c_stream::ot_unsigned	=  3;
+const c_stream::t_object_type c_stream::ot_double	=  4;
+const c_stream::t_object_type c_stream::ot_flag		=  5;
+const c_stream::t_object_type c_stream::ot_stamp	=  6;
+const c_stream::t_object_type c_stream::ot_string	=  7;
+const c_stream::t_object_type c_stream::ot_ipaddr	=  8;
+const c_stream::t_object_type c_stream::ot_path		=  9;
+const c_stream::t_object_type c_stream::ot_action	= 10;
+const c_stream::t_object_type c_stream::ot_protocol	= 11;
+
 
 
 
@@ -59,7 +79,7 @@ c_stream::~c_stream ()
 
 
 
-c_stream::t_fd c_stream::fd ()
+c_stream::t_fd c_stream::fd () const
 {
 	return f_fd;
 }
@@ -71,14 +91,30 @@ void c_stream::fd (c_stream::t_fd fd)
 	f_fd_defined = true;
 }
 
-c_stream::t_status c_stream::status ()
+c_stream::t_status c_stream::status () const
 {
 	return f_fd_defined ? f_status : st_nofd;
 }
 
-c_stream::t_error c_stream::error ()
+c_stream::t_error c_stream::error () const
 {
 	return f_error;
+}
+
+const char * c_stream::status_text () const
+{
+	switch (status())
+	{
+		case st_ok          : return "ok";
+		case st_eof         : return "end of file";
+		case st_timeout     : return "timed out";
+		case st_nofd        : return "no file descriptor";
+		case st_error_poll  : return "error in poll()";
+		case st_error_select: return "error in select()";
+		case st_error_read  : return "error in read()";
+		case st_error_write : return "error in write()";
+		default             : return "unknown error";
+	}
 }
 
 void c_stream::set_min_timeout (timeval value)
@@ -123,12 +159,12 @@ void c_stream::unset_max_timeout ()
 	f_have_max_timeout = false;
 }
 
-bool c_stream::have_min_timeout ()
+bool c_stream::have_min_timeout () const
 {
 	return f_have_min_timeout;
 }
 
-bool c_stream::have_max_timeout ()
+bool c_stream::have_max_timeout () const
 {
 	return f_have_max_timeout;
 }
@@ -137,7 +173,7 @@ bool c_stream::have_max_timeout ()
 
 
 
-t_object_type c_stream::object_typeof (c_object * object)
+c_stream::t_object_type c_stream::object_typeof (c_object * object)
 {
 	if (object == NULL) return ot_null; else
 	if (dynamic_cast<c_stopsign*>(object)) return ot_stopsign; else
@@ -150,10 +186,12 @@ t_object_type c_stream::object_typeof (c_object * object)
 	if (dynamic_cast<c_string  *>(object)) return ot_string  ; else
 	if (dynamic_cast<c_ipaddr  *>(object)) return ot_ipaddr  ; else
 	if (dynamic_cast<c_path    *>(object)) return ot_path    ; else
+	if (dynamic_cast<c_action  *>(object)) return ot_action  ; else
+	if (dynamic_cast<c_protocol*>(object)) return ot_protocol; else
 	return ot_null;
 }
 
-c_object * c_stream::object_create (t_object_type type)
+c_object * c_stream::object_create (c_stream::t_object_type type)
 {
 	switch (type)
 	{
@@ -167,11 +205,13 @@ c_object * c_stream::object_create (t_object_type type)
 		case ot_string  : return new c_string  ;
 		case ot_ipaddr  : return new c_ipaddr  ;
 		case ot_path    : return new c_path    ;
+		case ot_action  : return new c_action  ;
+		case ot_protocol: return new c_protocol;
 		default: return NULL;
 	}
 }
 
-const char * c_stream::object_name (t_object_type type)
+const char * c_stream::object_name (c_stream::t_object_type type)
 {
 	switch (type)
 	{
@@ -185,6 +225,8 @@ const char * c_stream::object_name (t_object_type type)
 		case ot_string  : return "string"  ;
 		case ot_ipaddr  : return "ipaddr"  ;
 		case ot_path    : return "path"    ;
+		case ot_action  : return "action"  ;
+		case ot_protocol: return "protocol";
 		default: return "null(unknown)";
 	}
 }
@@ -200,26 +242,31 @@ const char * c_stream::object_name (c_object * object)
 
 c_object * c_stream::read_object (timeval * timer)
 {
-	cerr << "Ring T" << endl;
 	t_object_type type;
 	_read(&type, sizeof(type), timer);
-	cerr << "Red  T=" << type<<"("<<object_name(type)<<") st="<<status()<< endl;
 	if (status()) return NULL;
+
+	std::auto_ptr<c_object> object(object_create(type));
+	if (!object.get()) return NULL;
 
 	t_object_size size;
-	_read(&size, sizeof(size), timer);
-	if (status()) return NULL;
-
-	std::auto_ptr<char> buffer (size ? new char[size] : NULL);
-	if (size)
+	if (object.get()->stream_vary())
 	{
-		_read(buffer.get(), size, timer);
+		_read(&size, sizeof(size), timer);
 		if (status()) return NULL;
+	} else {
+		size = object.get()->stream_size();
 	}
 
-	c_object * object = object_create(type);
-	if (object) object->stream_setdata(buffer.get(), size);
-	return object;
+	if (size)
+	{
+		std::auto_ptr<char> buffer(new char[size]);
+		_read(buffer.get(), size, timer);
+		if (status()) return NULL;
+		object.get()->stream_setdata(buffer.get(), size);
+	}
+
+	return object.release();
 }
 
 c_stream::t_vector c_stream::read_vector (timeval * timer)
@@ -271,12 +318,15 @@ void c_stream::write_object (c_object * object, timeval * timer)
 	if (status()) return; //throw???
 
 	t_object_size size = object->stream_size();
-	_write(&size, sizeof(size), timer);
-	if (status()) return; //throw???
+	if (object->stream_vary())
+	{
+		_write(&size, sizeof(size), timer);
+		if (status()) return; //throw???
+	}
 
-	std::auto_ptr<char> buffer(size ? new char[size] : NULL);
 	if (size)
 	{
+		std::auto_ptr<char> buffer(new char[size]);
 		object->stream_getdata(buffer.get(), size);
 		_write(buffer.get(), size, timer);
 		if (status()) return; //??? throw?
@@ -287,24 +337,24 @@ void c_stream::write_vector (c_stream::t_vector objects, timeval * timer)
 {
 	for (std::vector<c_object*>::const_iterator i = objects.begin(); i != objects.end(); i++)
 	{
-		write_object(*i);
+		write_object(*i, timer);
 		if (f_status) break;
 	}
 	c_stopsign ss;
-	write_object(&ss);
+	write_object(&ss, timer);
 }
 
 void c_stream::write_map (c_stream::t_map objects, timeval * timer)
 {
-	for (std::map<c_mapkey,c_object*>::const_iterator i = objects.begin(); i != objects.end(); i++)
+	for (t_map::const_iterator i = objects.begin(); i != objects.end(); i++)
 	{
-		write_object(const_cast<c_mapkey*>(&(i->first )));
+		write_object(const_cast<c_mapkey*>(&(i->first )), timer);
 		if (f_status) break;
-		write_object(const_cast<c_object*>( (i->second)));
+		write_object(const_cast<c_object*>( (i->second)), timer);
 		if (f_status) break;
 	}
 	c_stopsign ss;
-	write_object(&ss);
+	write_object(&ss, timer);
 }
 
 
@@ -412,7 +462,7 @@ void c_stream::_read (void * buffer, t_object_size size, timeval * timer)
 	if (_timing_finish(timer, &deadline)) { f_status = st_timeout; }
 }
 
-void c_stream::_write (void * buffer, t_object_size size, timeval * timer)
+void c_stream::_write (const void * buffer, t_object_size size, timeval * timer)
 {
 	// prepairing timers
 	timeval deadline;
@@ -436,7 +486,7 @@ void c_stream::_write (void * buffer, t_object_size size, timeval * timer)
 		if (code == -1) { if (errno == EAGAIN) continue; }  // EAGAIN || EINTR ???
 		if (code == -1) { f_status = st_error_select ; f_error = errno; break;  }
 		// writing data to file if it is ready
-		code = ::write(f_fd, static_cast<char*>(buffer)+count, size-count);
+		code = ::write(f_fd, static_cast<const char*>(buffer)+count, size-count);
 		if (code ==  0) { f_status = st_eof; break; }
 		if (code == -1) { if (errno == EAGAIN) continue; }
 		if (code == -1) { f_status = st_error_write; f_error = errno; break; }
@@ -454,9 +504,13 @@ void c_stream::_write (void * buffer, t_object_size size, timeval * timer)
 
 void c_stream::stamped (std::string message)
 {
+	timeval timer;
+	timer.tv_sec  = logging_timeout__sec ;
+	timer.tv_usec = logging_timeout__usec;
 	c_stamp t(::time(NULL));
 	c_unsigned p(::getpid());
-	return t.ascii(_log_time_format) + " [" + p.ascii(_log_pid_size) + "] " + message;
+	std::string s = t.ascii(logging_time_format) + " [" + p.ascii(logging_pid_length) + "] " + message + logging_terminator;
+	_write(static_cast<const char*>(s.c_str()), s.length(), &timer);
 }
 
 

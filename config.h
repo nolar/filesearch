@@ -2,10 +2,10 @@
 #define _FILESEARCH_CONFIG_
 
 // uncomment this to disable debugging messages
-#define NODEBUG
+//#define NODEBUG
 
 //
-#define NOLOG
+//#define NOLOG
 
 //
 //#define NOSTATUS
@@ -19,13 +19,13 @@
 #ifdef NOLOG
 #define LOG(s)
 #else
-#define LOG(s)    { if(!s_log.status())s_log.stamped(std::string()+s); DEBUG(s); }
+#define LOG(s)    { s_log.stamped(std::string()+s); DEBUG(s); }
 #endif
 
 #ifdef NODEBUG
 #define DEBUG(s)
 #else
-#define DEBUG(s) { if(!s_debug.status())s_debug.stamped(std::string()+s); }
+#define DEBUG(s)  { s_debug.stamped(std::string()+s); }
 #endif
 
 #ifdef NOSTATUS

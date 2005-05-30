@@ -3,93 +3,575 @@
 #include <sys/socket.h>
 #include "c_ipaddr.h"
 
+///!!!! DEBUG
+//#include <iostream>
+//#include <iomanip>
+//using namespace std;
+
+
+
+
+const c_ipaddr::t_mode c_ipaddr::mode_none = 0;
+const c_ipaddr::t_mode c_ipaddr::mode_dns  = 1;
+const c_ipaddr::t_mode c_ipaddr::mode_ipv4 = 2;
+const c_ipaddr::t_mode c_ipaddr::mode_ipv6 = 3;
+const c_ipaddr::t_overflow c_ipaddr::no_overflow   = 0;
+const c_ipaddr::t_overflow c_ipaddr::less_than_min = 1;
+const c_ipaddr::t_overflow c_ipaddr::more_than_max = 2;
+
+
+
+
 c_ipaddr::c_ipaddr ()
-	: f_mask(32)
+	: c_object()
 {
+	f_mode = mode_none;
+	f_overflow = no_overflow;
 }
 
-c_ipaddr::c_ipaddr (in_addr value, int mask)
+c_ipaddr::c_ipaddr (const c_ipaddr & right, bool make_concrete)
+	: c_object()
 {
-	f_addr = value;
-	f_mask = mask;
+	f_mode = right.f_mode;
+	f_data = right.f_data;
+	f_overflow = no_overflow;
+	if (make_concrete) switch (f_mode)
+	{
+		case mode_ipv4:
+			f_data.ipv4.length = 32;
+			break;
+		default:
+			break;
+	}
 }
 
-c_ipaddr::c_ipaddr (in_addr_t value, int mask)
+c_ipaddr::c_ipaddr (in_addr value)
+	: c_object()
 {
-	f_addr.s_addr = value;
-	f_mask = mask;
+	f_mode = mode_ipv4;
+	f_overflow = no_overflow;
+	f_data.ipv4.length = 32;
+	f_data.ipv4.addr = value;
 }
 
-c_ipaddr::c_ipaddr (char * value, int mask)
+c_ipaddr::c_ipaddr (std::string value)
+	: c_object()
 {
-	int code = ascii2addr(AF_INET, value, &f_addr);
-	if (code == -1) throw 1; //???!!!
-	f_mask = mask;
+	int code;
+	in_addr addr4;
+	if ((code = ascii2addr(AF_INET, value.c_str(), &addr4)) != -1)
+	{
+		f_mode = mode_ipv4;
+		f_overflow = no_overflow;
+		f_data.ipv4.length = 32;
+		f_data.ipv4.addr = addr4;
+	} else
+//	if ((code = ascii2addr6(.....)) != -1)
+//	{
+//		f_mode = mode_ipv6;
+//		...
+//	} else
+	{
+		f_mode = mode_none;
+	}
 }
 
-c_ipaddr::c_ipaddr (std::string value, int mask)
+
+c_ipaddr::c_ipaddr (in_addr value, c_ipaddr::t_length length)
+	: c_object()
 {
-	int code = ascii2addr(AF_INET, value.c_str(), &f_addr);
-	if (code == -1) throw 1; //???!!!
-	f_mask = mask;
+	f_mode = mode_ipv4;
+	f_overflow = no_overflow;
+	f_data.ipv4.length = length;
+	f_data.ipv4.addr = value;
+}
+
+c_ipaddr::c_ipaddr (std::string value, c_ipaddr::t_length length)
+	: c_object()
+{
+	int code;
+	in_addr addr4;
+	if ((code = ascii2addr(AF_INET, value.c_str(), &addr4)) != -1)
+	{
+		f_mode = mode_ipv4;
+		f_overflow = no_overflow;
+		f_data.ipv4.length = length;
+		f_data.ipv4.addr = addr4;
+	} else
+//	if ((code = ascii2addr6(.....)) != -1)
+//	{
+//		f_mode = mode_ipv6;
+//		...
+//	} else
+	{
+		f_mode = mode_none;
+	}
 }
 
 
 
 
+
+bool c_ipaddr::stream_vary () const
+{
+	return false;
+}
 
 t_object_size c_ipaddr::stream_size () const
 {
-	return sizeof(f_mask)+sizeof(f_addr);
+	return sizeof(f_mode)+sizeof(f_overflow)+sizeof(f_data);
 }
 
 void c_ipaddr::stream_getdata (void * buffer, t_object_size size) const
 {
 	char * buff = static_cast<char*>(buffer);
-	memcpy(buff, &f_mask, sizeof(f_mask)); buff += sizeof(f_mask);
-	memcpy(buff, &f_addr, sizeof(f_addr)); buff += sizeof(f_addr);
+	memcpy(buff, &f_mode    , sizeof(f_mode    )); buff += sizeof(f_mode    );
+	memcpy(buff, &f_overflow, sizeof(f_overflow)); buff += sizeof(f_overflow);
+	memcpy(buff, &f_data    , sizeof(f_data    )); buff += sizeof(f_data    );
 }
 
 void c_ipaddr::stream_setdata (const void * buffer, t_object_size size)
 {
 	const char * buff = static_cast<const char *>(buffer);
-	memcpy(&f_mask, buff, sizeof(f_mask)); buff += sizeof(f_mask);
-	memcpy(&f_addr, buff, sizeof(f_addr)); buff += sizeof(f_addr);
+	memcpy(&f_mode    , buff, sizeof(f_mode    )); buff += sizeof(f_mode    );
+	memcpy(&f_overflow, buff, sizeof(f_overflow)); buff += sizeof(f_overflow);
+	memcpy(&f_data    , buff, sizeof(f_data    )); buff += sizeof(f_data    );
 }
+
+
+
+
+
+
+
+std::string c_ipaddr::ascii (bool force_mask) const
+{
+	std::string result;
+	std::auto_ptr<char> buffer(new char[20]);
+//	in_addr addr4;
+	switch (f_overflow)
+	{
+		case more_than_max:
+			result = "more-than-max";
+			break;
+		case less_than_min:
+			result = "less-than-min";
+			break;
+		case no_overflow:
+			switch (f_mode)
+			{
+				case mode_ipv4:
+//					addr4 = apply4(f_data.ipv4.addr, f_data.ipv4.bits?f_data.ipv4.mask:makel4(f_data.ipv4.length));
+					if (!addr2ascii(AF_INET, &f_data.ipv4.addr, sizeof(f_data.ipv4.addr), buffer.get()))
+						throw 1; //!!!
+					result = buffer.get();
+					if (force_mask || (f_data.ipv4.length != 32))
+						result = result + "/" + _sprintf("%d", f_data.ipv4.length);
+					break;
+				default:
+					result = "unknown"; //??? throw here?
+			}
+			break;
+	}
+	return result;
+}
+
+
+c_ipaddr c_ipaddr::first () const
+{
+	c_ipaddr result;
+	result.f_mode = f_mode;
+	switch (f_mode)
+	{
+		case mode_ipv4:
+			result.f_data.ipv4.length = f_data.ipv4.length;
+			result.f_data.ipv4.addr = ipv4_addr(f_data.ipv4.addr, ipv4_min(), ipv4_mask(f_data.ipv4.length));
+			break;
+		default:
+			// throw???
+			break;
+	}
+	return result;
+}
+
+c_ipaddr c_ipaddr::last () const
+{
+	c_ipaddr result;
+	result.f_mode = f_mode;
+	switch (f_mode)
+	{
+		case mode_ipv4:
+			result.f_data.ipv4.length = f_data.ipv4.length;
+			result.f_data.ipv4.addr = ipv4_addr(f_data.ipv4.addr, ipv4_max(), ipv4_mask(f_data.ipv4.length));
+			break;
+		default:
+			// throw???
+			break;
+	}
+	return result;
+}
+
+c_ipaddr c_ipaddr::concrete () const
+{
+	c_ipaddr result;
+	result.f_mode = f_mode;
+	result.f_overflow = f_overflow;
+	result.f_data = f_data;
+	switch (f_mode)
+	{
+		case mode_ipv4:
+			result.f_data.ipv4.length = 32;
+			break;
+		default:
+			// throw???
+			break;
+	}
+	return result;
+}
+
 
 
 
 
 bool c_ipaddr::operator== (const c_ipaddr & right) const
 {
-	return f_mask == right.f_mask
-	    && f_addr.s_addr == right.f_addr.s_addr
-	    ;
+	bool result = (f_mode == right.f_mode) && (f_overflow == right.f_overflow);
+	if (result) if (f_overflow == no_overflow) switch (f_mode)
+	{
+		case mode_ipv4:
+			result = ipv4_cmpeq(f_data.ipv4.addr, right.f_data.ipv4.addr);
+			break;
+//		case mode_ipv6:
+//			result = cmpeq6(f_data.ipv6.addr, right.f_data.ipv6.addr);
+//			break;
+		default:
+			break;
+	}
+	return result;
 }
 
-
-
-
-
-int c_ipaddr::mask ()
+bool c_ipaddr::operator!= (const c_ipaddr & right) const
 {
-	return f_mask;
+	bool result = (f_mode != right.f_mode) || (f_overflow != right.f_overflow);
+	if (!result) if (f_overflow == no_overflow) switch (f_mode)
+	{
+		case mode_ipv4:
+			result = !ipv4_cmpeq(f_data.ipv4.addr, right.f_data.ipv4.addr);
+			break;
+//		case mode_ipv6:
+//			...
+//			break;
+		default:
+			break;
+	}
+	return result;
 }
 
-in_addr c_ipaddr::get_s ()
+bool c_ipaddr::operator< (const c_ipaddr & right) const
 {
-	return f_addr;
+	bool result = (f_mode == right.f_mode);
+	if (result)
+	switch (f_overflow)
+	{
+		case less_than_min:
+			result = (right.f_overflow != less_than_min);
+			break;
+		case more_than_max:
+			result = false;
+			break;
+		case no_overflow:
+			switch (f_mode)
+			{
+				case mode_ipv4:
+					result = ipv4_cmpls(f_data.ipv4.addr, right.f_data.ipv4.addr);
+					break;
+//				case mode_ipv6:
+//					...
+//					break;
+				default:
+					break;
+			}
+			break;
+	}
+	return result;
 }
 
-in_addr_t c_ipaddr::get_t ()
+bool c_ipaddr::operator<= (const c_ipaddr & right) const
 {
-	return f_addr.s_addr;
+	bool result = (f_mode == right.f_mode);
+	if (result)
+	switch (f_overflow)
+	{
+		case less_than_min:
+			result = true;
+			break;
+		case more_than_max:
+			result = (right.f_overflow == more_than_max);
+			break;
+		case no_overflow:
+			switch (f_mode)
+			{
+				case mode_ipv4:
+					result = ipv4_cmpls(f_data.ipv4.addr, right.f_data.ipv4.addr) || ipv4_cmpeq(f_data.ipv4.addr, right.f_data.ipv4.addr);
+					break;
+//				case mode_ipv6:
+//					...
+//					break;
+				default:
+					break;
+			}
+			break;
+	}
+	return result;
 }
 
-std::string c_ipaddr::ascii ()
+bool c_ipaddr::operator> (const c_ipaddr & right) const
 {
-	char buffer[20];
-	if (!addr2ascii(AF_INET, &f_addr, sizeof(f_addr), buffer))
-		throw 1; //!!!
-	return std::string(buffer);
+	bool result = (f_mode == right.f_mode);
+	if (result)
+	switch (f_overflow)
+	{
+		case less_than_min:
+			result = false;
+			break;
+		case more_than_max:
+			result = (right.f_overflow != more_than_max);
+			break;
+		case no_overflow:
+			switch (f_mode)
+			{
+				case mode_ipv4:
+					result = ipv4_cmpgt(f_data.ipv4.addr, right.f_data.ipv4.addr);
+					break;
+//				case mode_ipv6:
+//					...
+//					break;
+				default:
+					break;
+			}
+			break;
+	}
+	return result;
 }
+
+bool c_ipaddr::operator>= (const c_ipaddr & right) const
+{
+	bool result = (f_mode == right.f_mode);
+	if (result)
+	switch (f_overflow)
+	{
+		case less_than_min:
+			result = (right.f_overflow == less_than_min);
+			break;
+		case more_than_max:
+			result = true;
+			break;
+		case no_overflow:
+			switch (f_mode)
+			{
+				case mode_ipv4:
+					result = ipv4_cmpgt(f_data.ipv4.addr, right.f_data.ipv4.addr) || ipv4_cmpeq(f_data.ipv4.addr, right.f_data.ipv4.addr);
+					break;
+//				case mode_ipv6:
+//					...
+//					break;
+				default:
+					break;
+			}
+			break;
+	}
+	return result;
+}
+
+c_ipaddr & c_ipaddr::operator++ ()
+{
+	switch (f_mode)
+	{
+		case mode_ipv4:
+			if (f_overflow == less_than_min)
+				{ f_data.ipv4.addr = ipv4_min(); f_overflow = no_overflow; } else
+			if (f_overflow == no_overflow  ) 
+				if (ipv4_ismax(f_data.ipv4.addr)) f_overflow = more_than_max; else
+				f_data.ipv4.addr.s_addr = htonl(ntohl(f_data.ipv4.addr.s_addr)+1);
+			break;
+		default:
+			// throw???
+			break;
+	}
+	return *this;
+}
+
+c_ipaddr & c_ipaddr::operator++ (int)
+{
+	switch (f_mode)
+	{
+		case mode_ipv4:
+			if (f_overflow == less_than_min)
+				{ f_data.ipv4.addr = ipv4_min(); f_overflow = no_overflow; } else
+			if (f_overflow == no_overflow  ) 
+				if (ipv4_ismax(f_data.ipv4.addr)) f_overflow = more_than_max; else
+				f_data.ipv4.addr.s_addr = htonl(ntohl(f_data.ipv4.addr.s_addr)+1);
+			break;
+		default:
+			// throw???
+			break;
+	}
+	return *this;
+}
+
+c_ipaddr & c_ipaddr::operator-- ()
+{
+	switch (f_mode)
+	{
+		case mode_ipv4:
+			if (f_overflow == more_than_max)
+				{ f_data.ipv4.addr = ipv4_max(); f_overflow = no_overflow; } else
+			if (f_overflow == no_overflow  )
+				if (ipv4_ismin(f_data.ipv4.addr)) f_overflow = less_than_min; else
+				f_data.ipv4.addr.s_addr = htonl(ntohl(f_data.ipv4.addr.s_addr)-1);
+			break;
+		default:
+			// throw???
+			break;
+	}
+	return *this;
+}
+
+c_ipaddr & c_ipaddr::operator-- (int)
+{
+	switch (f_mode)
+	{
+		case mode_ipv4:
+			if (f_overflow == more_than_max)
+				{ f_data.ipv4.addr = ipv4_max(); f_overflow = no_overflow; } else
+			if (f_overflow == no_overflow  )
+				if (ipv4_ismin(f_data.ipv4.addr)) f_overflow = less_than_min; else
+				f_data.ipv4.addr.s_addr = htonl(ntohl(f_data.ipv4.addr.s_addr)-1);
+			break;
+		default:
+			// throw???
+			break;
+	}
+	return *this;
+}
+
+
+
+
+
+in_addr c_ipaddr::ipv4_min ()
+{
+	in_addr result;
+	memset(&result, 0, sizeof(result));
+	return result;
+}
+
+in_addr c_ipaddr::ipv4_max ()
+{
+	in_addr result;
+	memset(&result, 0xFF, sizeof(result));
+	return result;
+}
+
+in_addr c_ipaddr::ipv4_mask (c_ipaddr::t_length length)
+{
+	in_addr result;
+	result.s_addr = htonl(0xFFFFFFFF << (32 - length));
+	return result;
+}
+
+in_addr c_ipaddr::ipv4_net (in_addr addr, in_addr mask)
+{
+	in_addr result;
+	result.s_addr = addr.s_addr & mask.s_addr;
+	return result;
+}
+
+in_addr c_ipaddr::ipv4_host (in_addr addr, in_addr mask)
+{
+	in_addr result;
+	result.s_addr = addr.s_addr & ~mask.s_addr;
+	return result;
+}
+
+in_addr c_ipaddr::ipv4_addr (in_addr net, in_addr host)
+{
+	in_addr result;
+	result.s_addr = net.s_addr | host.s_addr;
+	return result;
+}
+
+in_addr c_ipaddr::ipv4_addr (in_addr net, in_addr host, in_addr mask)
+{
+	in_addr result;
+	result.s_addr = (net.s_addr & mask.s_addr) | (host.s_addr & ~mask.s_addr);
+	return result;
+}
+
+bool c_ipaddr::ipv4_ismin (in_addr addr)
+{
+	return (addr.s_addr == 0);
+}
+
+bool c_ipaddr::ipv4_ismax (in_addr addr)
+{
+	return (addr.s_addr == 0xFFFFFFFF);
+}
+
+bool c_ipaddr::ipv4_cmpeq (in_addr addr1, in_addr addr2)
+{
+	return addr1.s_addr == addr2.s_addr;
+}
+
+bool c_ipaddr::ipv4_cmpls (in_addr addr1, in_addr addr2)
+{
+	return ntohl(addr1.s_addr) < ntohl(addr2.s_addr);
+}
+
+bool c_ipaddr::ipv4_cmpgt (in_addr addr1, in_addr addr2)
+{
+	return ntohl(addr1.s_addr) > ntohl(addr2.s_addr);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+		//!!! TODO !!!
+		// too hard algorithm to do here
+		// 00001010
+		// 10010000
+		// 0--0----
+		// ========
+		// numeric = 0; bitscount = 0; bitsckipped = 0;
+		// if (mask & 1)
+		//   bitsskipped++;
+		// else
+		//   bit = ipaddr & 1;
+		//   numeric = (numeric << 1) | bit;
+		//   bitscount ++;
+		// endif
+		// mask >> 1;
+		// ipaddr >> 1;
+		// until 32 times executed (for ipv4)
+		////////// here we got numeric with bitscount valued bits
+		// numeric++;  / numeric--;
+		////////// here we got next/prev address
+		// addr = 0;
+		// if (mask & 1)
+		//   addr = (addr<<1) | (ipaddr & 1);
+		// else
+		//   addr = (addr<<1) | (numeric & 1);
+		// endif
+		// mask >> 1;
+		// ipaddr >> 1;
+		// numeric >> 1;
+		// ==========

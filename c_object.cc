@@ -5,6 +5,10 @@
 #include <stdarg.h>
 #include "c_object.h"
 
+
+
+
+
 const int c_object::_buffer_size = 1024;
 const char * c_object::_time_format = "%Y-%m-%d %H:%M:%S";
 
@@ -13,11 +17,31 @@ const char * c_object::_time_format = "%Y-%m-%d %H:%M:%S";
 
 
 c_object::c_object ()
+	: f_references(0)
 {
 }
 
 c_object::~c_object ()
 {
+}
+
+
+
+
+
+void c_object::reference_increase ()
+{
+	f_references++;
+}
+
+void c_object::reference_decrease ()
+{
+	f_references--;
+}
+
+bool c_object::reference_zero () const
+{
+	return f_references == 0;
 }
 
 

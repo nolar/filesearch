@@ -1,32 +1,32 @@
 #ifndef _FILESEARCH_FILEINFO_
 #define _FILESEARCH_FILEINFO_
 
-#include <string>
-#include <vector>
 #include "config.h"
-#include "typedefs.h"
+#include "globals.h"
+
+#include "c_path.h"
+#include "c_flag.h"
+#include "c_unsigned.h"
+#include "c_stamp.h"
 
 class c_fileinfo {
 private:
-	t_path f_path;
-	t_flag f_container;
-	t_size f_size;
-	t_time f_ctime;
-	t_time f_mtime;
+	c_path f_path;
+	c_flag f_container;
+	c_unsigned f_size;
+	c_stamp f_ctime;
+	c_stamp f_mtime;
 protected:
 public:
 	c_fileinfo ();
-	c_fileinfo (t_path      a_path, t_flag      a_container, t_size      a_size, t_time      a_ctime, t_time      a_mtime);
-	c_fileinfo (std::string a_path, std::string a_container, std::string a_size, std::string a_ctime, std::string a_mtime);
+	c_fileinfo (const c_fileinfo & right);
+	c_fileinfo (c_path a_path, c_flag a_container, c_unsigned a_size, c_stamp a_ctime, c_stamp a_mtime);
 
-	c_fileinfo & operator = (const c_fileinfo & right);
-
-	t_path path ();
-	std::string name ();
-	t_flag container ();
-	t_size size ();
-	t_time ctime ();
-	t_time mtime ();
+	c_path             path () const;
+	c_flag        container () const;
+	c_unsigned         size () const;
+	c_stamp           ctime () const;
+	c_stamp           mtime () const;
 };
 
 #endif

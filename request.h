@@ -4,65 +4,50 @@
 #include <string>
 #include <vector>
 #include "config.h"
-#include "typedefs.h"
+#include "globals.h"
 
-using namespace std;
+#include "c_string.h"
+#include "c_flag.h"
+#include "c_unsigned.h"
+#include "c_protocol.h"
+#include "c_ipaddr.h"
 
 class c_request {
 private:
-	t_sqlid f_id;
-	t_proto f_proto;
-	t_flag f_isnetwork;
-	t_ipaddr f_address;
-	t_ipmask f_netmask;
-	t_ipport f_port;
-	string f_share;
-	string f_username;
-
-	string f_password;
-	string f_workgroup;
-	string f_selfname;
-	t_timeout f_timeout;
-	t_depth   f_depth;
-
-	t_sqlid f_resourceid;
+	c_unsigned f_id;
+	c_protocol f_protocol;
+	c_flag     f_isnetwork;
+	c_ipaddr   f_address;
+	c_unsigned f_port;
+	c_string   f_share;
+	c_string   f_username;
+	c_string   f_password;
+	c_string   f_workgroup;
+	c_string   f_selfname;
+	c_unsigned f_timeout;
+	c_unsigned f_depth;
+	c_unsigned f_resource;
 protected:
-	static const t_ipaddr address_max;
-	static const t_ipaddr address_min;
-	static const t_ipaddr address_self;
-	static const t_ipmask netmask_min;
-	static const t_ipmask netmask_max;
-	static const t_ipmask netmask_self;
 public:
 	c_request ();
-//	c_request (t_sqlid   a_id, t_proto a_proto, bool   a_isnetwork, t_ipaddr a_address, t_ipmask a_netmask, t_ipport a_port, string a_share, string a_username, string a_password, string a_workgroup, string a_selfname, unsigned a_timeout, unsigned a_depth);
-	c_request (string a_id, string  a_proto, string a_isnetwork, string   a_address, string   a_netmask, string   a_port, string a_share, string a_username, string a_password, string a_workgroup, string a_selfname, string   a_timeout, string   a_depth);
+	c_request (const c_request & right);
+	c_request (c_unsigned a_id, c_protocol a_protocol, c_flag a_isnetwork, c_ipaddr a_address, c_unsigned a_port, c_string a_share, c_string a_username, c_string a_password, c_string a_workgroup, c_string a_selfname, c_unsigned a_timeout, c_unsigned a_depth);
 
-	c_request & operator = (const c_request & right);
-
-	t_sqlid id ();
-	t_proto proto ();
-	bool isnetwork ();
-	t_ipaddr address ();
-	void address (t_ipaddr address);
-	t_ipmask netmask ();
-	t_ipaddr address_from ();
-	t_ipaddr address_till ();
-	t_ipport port ();
-	string share ();
-	void share (string value);
-	string username ();
-	string password ();
-	string workgroup ();
-	string selfname ();
-	t_timeout timeout ();
-	t_depth   depth ();
-	void depth (t_depth value);
-
-	t_sqlid resourceid ();
-	void resourceid (t_sqlid id);
+	c_unsigned id        ();
+	c_protocol protocol  ();
+	c_flag     isnetwork (); void isnetwork (c_flag     value);
+	c_ipaddr   address   (); void address   (c_ipaddr   value);
+	c_unsigned port      ();
+	c_string   share     (); void share     (c_string   value);
+	c_string   username  ();
+	c_string   password  ();
+	c_string   workgroup ();
+	c_string   selfname  ();
+	c_unsigned timeout   ();
+	c_unsigned depth     (); void depth     (c_unsigned value);
+	c_unsigned resource  (); void resource  (c_unsigned value);
 };
 
-typedef vector<c_request> c_requests;
+typedef std::vector<c_request> c_requests;
 
 #endif

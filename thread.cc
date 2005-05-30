@@ -1,17 +1,20 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <iostream>
-#include <iomanip>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <map>
+#include <vector>
+#include <string>
+
+#include <iostream>
+#include <iomanip>
+
 #include "thread.h"
 #include "database.h"
 #include "forker.h"
-#include "io.h"
-#include "options.h"
-#include "convert.h"
+#include "c_stream.h"
 
 extern c_database * database;
 extern c_forker * forker;
@@ -38,63 +41,68 @@ int thread_catch (std::exception * se, e_basic * be)
 	return 1;
 }
 
-bool thread_wrap (string command, c_request request,
-	t_thread_wrap_action_resource action_resource,
-	t_thread_wrap_action_dir      action_dir,
-	t_thread_wrap_action_file     action_file,
-	t_thread_wrap_action_enter    action_enter,
-	t_thread_wrap_action_leave    action_leave,
-	t_thread_wrap_action_start    action_start)
+bool thread_wrap (std::string command, c_request request,
+	t_wrap_action_resource action_resource,
+	t_wrap_action_dir      action_dir,
+	t_wrap_action_file     action_file,
+	t_wrap_action_enter    action_enter,
+	t_wrap_action_leave    action_leave,
+	t_wrap_action_start    action_start)
 {
 	// creating fd for stdin & stdout of scan process
-	DEBUG("Creating pipes to scanner process for ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
+//!!!	DEBUG("Creating pipes to scanner process for ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
 	int ifd[2]; if (pipe(ifd) == -1) throw e_basic("can not create in pipe!!!", errno, strerror(errno));//e_basic???!!!
-	DEBUG("Created pipe "+convert::fd2print(ifd[0])+"<->"+convert::fd2print(ifd[1])+" for task stream of scanner process for ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
+//!!!	DEBUG("Created pipe "+convert::fd2print(ifd[0])+"<->"+convert::fd2print(ifd[1])+" for task stream of scanner process for ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
 	int ofd[2]; if (pipe(ofd) == -1) throw e_basic("can not create out pipe!!!", errno, strerror(errno));//e_basic???!!!
-	DEBUG("Created pipe "+convert::fd2print(ofd[0])+"<->"+convert::fd2print(ofd[1])+" for data stream of scanner process for ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
+//!!!	DEBUG("Created pipe "+convert::fd2print(ofd[0])+"<->"+convert::fd2print(ofd[1])+" for data stream of scanner process for ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
+	c_stream s_task();
 
 	//
-	std::string url = convert::proto2print(request.proto())+"://"+convert::ipaddr2print(request.address())+"/"+request.share();
+	std::string url = request.protocol().ascii() + "://" + request.address().ascii() + "/" + request.share();
 	// executing scan process with substituted fds
 	STATUS("starting "+url);
-	map<int,int> fds;
-	vector<string> arg;
-	vector<string> env;
-	fds[io::fd_task] = ifd[0];
-	fds[io::fd_data] = ofd[1];
+	std::map<int,int> fds;
+	std::vector<std::string> arg;
+	std::vector<std::string> env;
+	fds[io::fd_task] = ifd[0];//????????!!!!!!!
+	fds[io::fd_data] = ofd[1];//????????!!!!!!!!
 //???	fds[io::fd_debug] = io::fd_null;
-	arg.push_back(convert::ipaddr2print(request.address()));
+	arg.push_back(request.address().ascii());
 	arg.push_back(request.share());
 	t_pident pid = c_forker::exec(command, arg, env, fds);
-	DEBUG("Created scanner process "+convert::pident2print(pid)+" for ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
+//!!!	DEBUG("Created scanner process "+c_unsigned(pid).ascii()+" for ip='"+convert::ipaddr2print(request.address())+"',share='"+request.share()+"',username='"+request.username()+"'.");
 	close(ifd[0]); close(ofd[1]);
 
+	//
+	c_stream s_task(ifd[1]); s_task.set_min_timer(default_timeout_task__sec, default_timeout_task__usec);
+	c_stream s_data(ofd[0]);
+
 	// sending parameters to scanner process
-	t_stream_status status;
-	vector<string> task;
-	task.push_back(convert::ipaddr2print(request.address()));
-	task.push_back(request.share());
-	task.push_back(request.username());
-	task.push_back(request.password());
-	task.push_back(request.workgroup());
-	task.push_back(request.selfname());
-	task.push_back(convert::timeout2system(request.timeout()));
-	task.push_back(convert::timeout2system(request.depth()));
-	DEBUG("Writing task for scanner process "+convert::pident2print(pid)+".");
-	io::writeblock(ifd[1], NULL, &status, options::terminator, task); //!!! make it woth timeout 1 sec
-	if (status) throw e_basic("Can not write task to scanner process "+convert::pident2print(pid)+" status "+convert::ui2str(status)+"."); //!!! ui2str -> stream2print
+	c_stream::t_map task;
+	task[ipc_task_ipaddr   ] = new c_address (request.address  ());
+	task[ipc_task_rootpath ] = new c_path    (request.share    ());
+	task[ipc_task_username ] = new c_string  (request.username ());
+	task[ipc_task_password ] = new c_string  (request.password ());
+	task[ipc_task_workgroup] = new c_string  (request.workgroup());
+	task[ipc_task_selfname ] = new c_string  (request.selfname ());
+	task[ipc_task_timeout  ] = new c_unsigned(request.timeout  ());
+	task[ipc_task_depth    ] = new c_unsigned(request.depth    ());
+	DEBUG("Writing task for scanner process "+c_unsigned(pid).ascii()+".");
+	s_task.write_map(task);
+	for (c_stream::t_map::iterator i = task.begin(); i != task.end(); i++) delete i->second;
+	if (s_task.status()) throw e_basic("Can not write task to scanner process "+c_unsigned(pid)+" status "+s_task.status_text()+".");
 
 	// reading and handling output of scanner process
-	STATUS("handling "+url);
+	STATUS("controlling "+url);
 	timeval timer;
 	bool datacomplete = false;
 	do {
-		DEBUG("Getting reply from scanner process "+convert::pident2print(pid)+".");
+		DEBUG("Getting reply from scanner process "+c_unsigned(pid).ascii()+".");
 		timer.tv_sec = request.timeout(); timer.tv_usec = 0;
-		vector<string> data = io::readblock(ofd[0], &timer, &status, options::terminator, true, true);
-		string action; if (data.size()) { action = data[0]; data.erase(data.begin()); }
-		if (status) DEBUG("Can not read data from scanner process "+convert::pident2print(pid)+" status "+convert::ui2str(status)+"."); //!!! ui2str -> stream2print
-		else        DEBUG("Got action='"+action+"' and "+convert::ui2str(data.size())+" data lines from scanner process "+convert::pident2print(pid)+".");
+		c_stream::t_map data = s_data.read_map(&timer);
+		c_action action; if (data.find(ipc_data_action) != data.end()) { action = data[ipc_data_action].as_action(); }
+		if (s_data.status()) DEBUG("Can not read data from scanner process "+c_unsigned(pid).ascii()+" status "+s_data.status_text()+".");
+		else                 DEBUG("Got action='"+action->ascii()+"' and "+convert::ui2str(data.size())+" data lines from scanner process "+c_unsigned(pid).ascii()+".");
 		if (!status && !action.empty())
 		{
 			//
@@ -140,21 +148,21 @@ bool thread_wrap (string command, c_request request,
 		}
 	} while (!status);
 	close(ifd[1]); close(ofd[0]);
-	DEBUG("Reading of data from scanner process "+convert::pident2print(pid)+" finished.");
+	DEBUG("Reading of data from scanner process "+c_unsigned(pid).ascii()+" finished.");
 
 	// closing process
 	STATUS("closing "+url);
-	DEBUG("Waiting for scanner process "+convert::pident2print(pid)+" to finish.");
+	DEBUG("Waiting for scanner process "+c_unsigned(pid).ascii()+" to finish.");
 	int wstat;
-	DEBUG("Sending signal to process "+convert::pident2print(pid)+".");
+	DEBUG("Sending signal to process "+c_unsigned(pid).ascii()+".");
 	kill(pid, SIGKILL);
-	DEBUG("Sent signal to process "+convert::pident2print(pid)+": "+(errno?"ok":strerror(errno))+".");
+	DEBUG("Sent signal to process "+c_unsigned(pid).ascii()+": "+(errno?"ok":strerror(errno))+".");
 	int counter = 0;
 	while (c_forker::wait_child_hang(&wstat) > 0)
 	{
 		datacomplete = datacomplete && WIFEXITED(wstat) && !WEXITSTATUS(wstat);
 		counter++;
-		DEBUG("Scanner process "+convert::pident2print(pid)+" exited: "+convert::pstatus2print(wstat)+".");
+		DEBUG("Scanner process "+c_unsigned(pid).ascii()+" exited: "+convert::pstatus2print(wstat)+".");
 	}
 	DEBUG("KILLING FINISHED counter="+convert::si2str(counter)+" lastcode="+strerror(errno)+".");
 	STATUS("");

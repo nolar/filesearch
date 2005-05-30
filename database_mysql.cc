@@ -1,9 +1,8 @@
 #include "database_mysql.h"
-#include "options.h"
-#include "convert.h"
-#include "io.h"
+#include "globals.h"
+#include "c_stream.h"
 
-t_pident c_database_mysql::_initialized_pid = NULL;
+c_unsigned c_database_mysql::_initialized_pid = 0;
 
 c_database_mysql::c_database_mysql (string host, string user, string pass, string db, unsigned int port, string socket, unsigned long flags)
 	: c_database ()
@@ -57,6 +56,7 @@ c_database * c_database_mysql::duplicate ()
 
 string c_database_mysql::escape (string s)
 {
+	// !!! use auto_ptr here for buffer
 	string::size_type len = s.length();
 	string::value_type * buffer = new string::value_type[len*2+1];
 	unsigned long l = mysql_real_escape_string(&handle, buffer, s.c_str(), len);

@@ -2,16 +2,23 @@
 #include "c_flag.h"
 
 c_flag::c_flag ()
-	: f_value()
+	: c_object
+	, f_value()
 {
 }
 
 c_flag::c_flag (bool value)
-	: f_value(value)
+	: c_object
+	, f_value(value)
 {
 }
 
 
+
+bool c_flag::stream_vary () const
+{
+	return false;
+}
 
 t_object_size c_flag::stream_size () const
 {
@@ -47,7 +54,7 @@ bool c_flag::operator== (const c_flag & right) const
 	return f_value == right.f_value;
 }
 
-bool c_flag::operator<  (const c_flag & right) const
+c_flag::operator bool () const
 {
-	return f_value < right.f_value;
+	return f_value;
 }

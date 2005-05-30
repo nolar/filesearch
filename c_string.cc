@@ -2,21 +2,29 @@
 #include "c_string.h"
 
 c_string::c_string ()
-	: f_value()
+	: c_object
+	, f_value()
 {
 }
 
 c_string::c_string (std::string value)
-	: f_value(value)
+	: c_object
+	, f_value(value)
 {
 }
 
 c_string::c_string (char * value)
-	: f_value(value)
+	: c_object
+	, f_value(value)
 {
 }
 
 
+
+bool c_string::stream_vary () const
+{
+	return true;
+}
 
 t_object_size c_string::stream_size () const
 {
@@ -59,12 +67,65 @@ bool c_string::empty () const
 
 
 
+c_string & c_string::operator= (const c_string & right)
+{
+	f_value = right.f_value;
+	return *this;
+}
+
+c_string & c_string::operator= (const std::string value)
+{
+	f_value = value;
+	return *this;
+}
+
+c_string & c_string::operator= (const char * value)
+{
+	f_value = value;
+	return *this;
+}
+
 bool c_string::operator== (const c_string & right) const
 {
 	return f_value == right.f_value;
 }
 
+bool c_string::operator!= (const c_string & right) const
+{
+	return f_value != right.f_value;
+}
+
 bool c_string::operator<  (const c_string & right) const
 {
 	return f_value < right.f_value;
+}
+
+bool c_string::operator<= (const c_string & right) const
+{
+	return f_value <= right.f_value;
+}
+
+bool c_string::operator>  (const c_string & right) const
+{
+	return f_value > right.f_value;
+}
+
+bool c_string::operator>= (const c_string & right) const
+{
+	return f_value >= right.f_value;
+}
+
+c_string c_string::operator+ (const c_string & right) const
+{
+	return c_string(f_value + right.f_value);
+}
+
+c_string c_string::operator+ (const std::string & value) const
+{
+	return c_string(f_value + value);
+}
+
+c_string c_string::operator+ (const char * value) const
+{
+	return c_string(f_value + value);
 }
