@@ -1,23 +1,36 @@
-#include <string.h>
 #include "c_string.h"
+#include "globals.h"
+#include <string.h>
+
+
+
+
 
 c_string::c_string ()
-	: c_object
+	: c_object()
 	, f_value()
 {
 }
 
-c_string::c_string (std::string value)
-	: c_object
+c_string::c_string (const c_string & right)
+	: c_object()
+	, f_value(right.f_value)
+{
+}
+
+c_string::c_string (c_string::t_value value)
+	: c_object()
 	, f_value(value)
 {
 }
 
-c_string::c_string (char * value)
-	: c_object
+c_string::c_string (const char * value)
+	: c_object()
 	, f_value(value)
 {
 }
+
+
 
 
 
@@ -44,44 +57,10 @@ void c_string::stream_setdata (const void * buffer, t_object_size size)
 
 
 
-std::string c_string::get () const
-{
-	return f_value;
-}
-
-void c_string::set (std::string value)
-{
-	f_value = value;
-}
-
-const char * c_string::c_str () const
-{
-	return f_value.c_str();
-}
-
-bool c_string::empty () const
-{
-	return f_value.empty();
-}
-
-
-
 
 c_string & c_string::operator= (const c_string & right)
 {
 	f_value = right.f_value;
-	return *this;
-}
-
-c_string & c_string::operator= (const std::string value)
-{
-	f_value = value;
-	return *this;
-}
-
-c_string & c_string::operator= (const char * value)
-{
-	f_value = value;
 	return *this;
 }
 
@@ -120,12 +99,36 @@ c_string c_string::operator+ (const c_string & right) const
 	return c_string(f_value + right.f_value);
 }
 
-c_string c_string::operator+ (const std::string & value) const
+
+
+
+
+c_string::t_value c_string::get (void) const
 {
-	return c_string(f_value + value);
+	return f_value;
 }
 
-c_string c_string::operator+ (const char * value) const
+void c_string::set (c_string::t_value value)
 {
-	return c_string(f_value + value);
+	f_value = value;
+}
+
+const char * c_string::c_str () const
+{
+	return f_value.c_str();
+}
+
+std::string c_string::ascii () const
+{
+	return f_value;
+}
+
+bool c_string::empty () const
+{
+	return f_value.empty();
+}
+
+c_string::t_length c_string::length () const
+{
+	return f_value.length();
 }

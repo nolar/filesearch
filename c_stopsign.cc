@@ -1,10 +1,22 @@
-#include <string.h>
 #include "c_stopsign.h"
+#include "globals.h"
+#include <string.h>
+
+
+
+
 
 c_stopsign::c_stopsign ()
 	: c_object()
 {
 }
+
+c_stopsign::c_stopsign (const c_stopsign & right)
+	: c_object()
+{
+}
+
+
 
 
 

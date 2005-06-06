@@ -1,20 +1,18 @@
+#include "c_ipaddr.h"
+#include "globals.h"
 #include <string.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include "c_ipaddr.h"
-
-///!!!! DEBUG
-//#include <iostream>
-//#include <iomanip>
-//using namespace std;
 
 
 
 
-const c_ipaddr::t_mode c_ipaddr::mode_none = 0;
-const c_ipaddr::t_mode c_ipaddr::mode_dns  = 1;
-const c_ipaddr::t_mode c_ipaddr::mode_ipv4 = 2;
-const c_ipaddr::t_mode c_ipaddr::mode_ipv6 = 3;
+
+const c_ipaddr::t_mode     c_ipaddr::mode_none     = 0;
+const c_ipaddr::t_mode     c_ipaddr::mode_dns      = 1;
+const c_ipaddr::t_mode     c_ipaddr::mode_ipv4     = 2;
+const c_ipaddr::t_mode     c_ipaddr::mode_ipv6     = 3;
+
 const c_ipaddr::t_overflow c_ipaddr::no_overflow   = 0;
 const c_ipaddr::t_overflow c_ipaddr::less_than_min = 1;
 const c_ipaddr::t_overflow c_ipaddr::more_than_max = 2;
@@ -22,47 +20,40 @@ const c_ipaddr::t_overflow c_ipaddr::more_than_max = 2;
 
 
 
+
 c_ipaddr::c_ipaddr ()
 	: c_object()
+	, f_mode(mode_none)
+	, f_overflow(no_overflow)
 {
-	f_mode = mode_none;
-	f_overflow = no_overflow;
 }
 
-c_ipaddr::c_ipaddr (const c_ipaddr & right, bool make_concrete)
+c_ipaddr::c_ipaddr (const c_ipaddr & right)
 	: c_object()
+	, f_mode(right.f_mode)
+	, f_overflow(right.f_overflow)
+	, f_data(right.f_data)
 {
-	f_mode = right.f_mode;
-	f_data = right.f_data;
-	f_overflow = no_overflow;
-	if (make_concrete) switch (f_mode)
-	{
-		case mode_ipv4:
-			f_data.ipv4.length = 32;
-			break;
-		default:
-			break;
-	}
 }
 
 c_ipaddr::c_ipaddr (in_addr value)
 	: c_object()
+	, f_mode(mode_ipv4)
+	, f_overflow(no_overflow)
 {
-	f_mode = mode_ipv4;
-	f_overflow = no_overflow;
 	f_data.ipv4.length = 32;
 	f_data.ipv4.addr = value;
 }
 
 c_ipaddr::c_ipaddr (std::string value)
 	: c_object()
+	, f_overflow(no_overflow)
 {
 	int code;
 	in_addr addr4;
 	if ((code = ascii2addr(AF_INET, value.c_str(), &addr4)) != -1)
 	{
 		f_mode = mode_ipv4;
-		f_overflow = no_overflow;
 		f_data.ipv4.length = 32;
 		f_data.ipv4.addr = addr4;
 	} else
@@ -79,22 +70,22 @@ c_ipaddr::c_ipaddr (std::string value)
 
 c_ipaddr::c_ipaddr (in_addr value, c_ipaddr::t_length length)
 	: c_object()
+	, f_mode(mode_ipv4)
+	, f_overflow(no_overflow)
 {
-	f_mode = mode_ipv4;
-	f_overflow = no_overflow;
 	f_data.ipv4.length = length;
 	f_data.ipv4.addr = value;
 }
 
 c_ipaddr::c_ipaddr (std::string value, c_ipaddr::t_length length)
 	: c_object()
+	, f_overflow(no_overflow)
 {
 	int code;
 	in_addr addr4;
 	if ((code = ascii2addr(AF_INET, value.c_str(), &addr4)) != -1)
 	{
 		f_mode = mode_ipv4;
-		f_overflow = no_overflow;
 		f_data.ipv4.length = length;
 		f_data.ipv4.addr = addr4;
 	} else
@@ -142,96 +133,13 @@ void c_ipaddr::stream_setdata (const void * buffer, t_object_size size)
 
 
 
-
-
-std::string c_ipaddr::ascii (bool force_mask) const
+c_ipaddr & c_ipaddr::operator= (const c_ipaddr & right)
 {
-	std::string result;
-	std::auto_ptr<char> buffer(new char[20]);
-//	in_addr addr4;
-	switch (f_overflow)
-	{
-		case more_than_max:
-			result = "more-than-max";
-			break;
-		case less_than_min:
-			result = "less-than-min";
-			break;
-		case no_overflow:
-			switch (f_mode)
-			{
-				case mode_ipv4:
-//					addr4 = apply4(f_data.ipv4.addr, f_data.ipv4.bits?f_data.ipv4.mask:makel4(f_data.ipv4.length));
-					if (!addr2ascii(AF_INET, &f_data.ipv4.addr, sizeof(f_data.ipv4.addr), buffer.get()))
-						throw 1; //!!!
-					result = buffer.get();
-					if (force_mask || (f_data.ipv4.length != 32))
-						result = result + "/" + _sprintf("%d", f_data.ipv4.length);
-					break;
-				default:
-					result = "unknown"; //??? throw here?
-			}
-			break;
-	}
-	return result;
+	f_mode = right.f_mode;
+	f_overflow = right.f_overflow;
+	f_data = right.f_data;
+	return * this;
 }
-
-
-c_ipaddr c_ipaddr::first () const
-{
-	c_ipaddr result;
-	result.f_mode = f_mode;
-	switch (f_mode)
-	{
-		case mode_ipv4:
-			result.f_data.ipv4.length = f_data.ipv4.length;
-			result.f_data.ipv4.addr = ipv4_addr(f_data.ipv4.addr, ipv4_min(), ipv4_mask(f_data.ipv4.length));
-			break;
-		default:
-			// throw???
-			break;
-	}
-	return result;
-}
-
-c_ipaddr c_ipaddr::last () const
-{
-	c_ipaddr result;
-	result.f_mode = f_mode;
-	switch (f_mode)
-	{
-		case mode_ipv4:
-			result.f_data.ipv4.length = f_data.ipv4.length;
-			result.f_data.ipv4.addr = ipv4_addr(f_data.ipv4.addr, ipv4_max(), ipv4_mask(f_data.ipv4.length));
-			break;
-		default:
-			// throw???
-			break;
-	}
-	return result;
-}
-
-c_ipaddr c_ipaddr::concrete () const
-{
-	c_ipaddr result;
-	result.f_mode = f_mode;
-	result.f_overflow = f_overflow;
-	result.f_data = f_data;
-	switch (f_mode)
-	{
-		case mode_ipv4:
-			result.f_data.ipv4.length = 32;
-			break;
-		default:
-			// throw???
-			break;
-	}
-	return result;
-}
-
-
-
-
 
 bool c_ipaddr::operator== (const c_ipaddr & right) const
 {
@@ -459,6 +367,92 @@ c_ipaddr & c_ipaddr::operator-- (int)
 
 
 
+c_ipaddr c_ipaddr::range_first () const
+{
+	c_ipaddr result;
+	result.f_mode = f_mode;
+	switch (f_mode)
+	{
+		case mode_ipv4:
+			result.f_data.ipv4.length = f_data.ipv4.length;
+			result.f_data.ipv4.addr = ipv4_addr(f_data.ipv4.addr, ipv4_min(), ipv4_mask(f_data.ipv4.length));
+			break;
+		default:
+			// throw???
+			break;
+	}
+	return result;
+}
+
+c_ipaddr c_ipaddr::range_last () const
+{
+	c_ipaddr result;
+	result.f_mode = f_mode;
+	switch (f_mode)
+	{
+		case mode_ipv4:
+			result.f_data.ipv4.length = f_data.ipv4.length;
+			result.f_data.ipv4.addr = ipv4_addr(f_data.ipv4.addr, ipv4_max(), ipv4_mask(f_data.ipv4.length));
+			break;
+		default:
+			// throw???
+			break;
+	}
+	return result;
+}
+
+c_ipaddr c_ipaddr::concrete () const
+{
+	c_ipaddr result;
+	result.f_mode = f_mode;
+	result.f_overflow = f_overflow;
+	result.f_data = f_data;
+	switch (f_mode)
+	{
+		case mode_ipv4:
+			result.f_data.ipv4.length = 32;
+			break;
+		default:
+			// throw???
+			break;
+	}
+	return result;
+}
+
+std::string c_ipaddr::ascii (signed mask_mode) const
+{
+	std::string result;
+	std::auto_ptr<char> buffer(new char[20]);
+	switch (f_overflow)
+	{
+		case more_than_max:
+			result = "more-than-max";
+			break;
+		case less_than_min:
+			result = "less-than-min";
+			break;
+		case no_overflow:
+			switch (f_mode)
+			{
+				case mode_ipv4:
+					if (!addr2ascii(AF_INET, &f_data.ipv4.addr, sizeof(f_data.ipv4.addr), buffer.get()))
+						throw e_convert(__FILE__,__LINE__,"Can not convert IP address to string.");
+					result = buffer.get();
+					if ((mask_mode > 0) || (mask_mode == 0 && f_data.ipv4.length != 32))
+						result = result + "/" + string_format("%d", f_data.ipv4.length);
+					break;
+				default:
+					result = "unknown"; //??? throw here?
+			}
+			break;
+	}
+	return result;
+}
+
+
+
+
+
 in_addr c_ipaddr::ipv4_min ()
 {
 	in_addr result;
@@ -532,46 +526,3 @@ bool c_ipaddr::ipv4_cmpgt (in_addr addr1, in_addr addr2)
 {
 	return ntohl(addr1.s_addr) > ntohl(addr2.s_addr);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-		//!!! TODO !!!
-		// too hard algorithm to do here
-		// 00001010
-		// 10010000
-		// 0--0----
-		// ========
-		// numeric = 0; bitscount = 0; bitsckipped = 0;
-		// if (mask & 1)
-		//   bitsskipped++;
-		// else
-		//   bit = ipaddr & 1;
-		//   numeric = (numeric << 1) | bit;
-		//   bitscount ++;
-		// endif
-		// mask >> 1;
-		// ipaddr >> 1;
-		// until 32 times executed (for ipv4)
-		////////// here we got numeric with bitscount valued bits
-		// numeric++;  / numeric--;
-		////////// here we got next/prev address
-		// addr = 0;
-		// if (mask & 1)
-		//   addr = (addr<<1) | (ipaddr & 1);
-		// else
-		//   addr = (addr<<1) | (numeric & 1);
-		// endif
-		// mask >> 1;
-		// ipaddr >> 1;
-		// numeric >> 1;
-		// ==========

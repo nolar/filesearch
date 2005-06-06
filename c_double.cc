@@ -1,5 +1,10 @@
-#include <string.h>
 #include "c_double.h"
+#include "globals.h"
+#include <string.h>
+
+
+
+
 
 c_double::c_double ()
 	: c_object()
@@ -7,11 +12,19 @@ c_double::c_double ()
 {
 }
 
-c_double::c_double (double value)
+c_double::c_double (const c_double & right)
+	: c_object()
+	, f_value(right.f_value)
+{
+}
+
+c_double::c_double (c_double::t_value value)
 	: c_object()
 	, f_value(value)
 {
 }
+
+
 
 
 
@@ -38,23 +51,73 @@ void c_double::stream_setdata (const void * buffer, t_object_size size)
 
 
 
-double c_double::get ()
-{
-	return f_value;
-}
 
-void c_double::set (double value)
+c_double & c_double::operator= (const c_double & right)
 {
-	f_value = value;
+	f_value = right.f_value;
+	return *this;
 }
-
 
 bool c_double::operator== (const c_double & right) const
 {
 	return f_value == right.f_value;
 }
 
+bool c_double::operator!= (const c_double & right) const
+{
+	return f_value != right.f_value;
+}
+
 bool c_double::operator<  (const c_double & right) const
 {
 	return f_value < right.f_value;
+}
+
+bool c_double::operator<= (const c_double & right) const
+{
+	return f_value <= right.f_value;
+}
+
+bool c_double::operator>  (const c_double & right) const
+{
+	return f_value > right.f_value;
+}
+
+bool c_double::operator>= (const c_double & right) const
+{
+	return f_value >= right.f_value;
+}
+
+c_double c_double::operator* (const c_double & right) const
+{
+	return c_double(f_value * right.f_value);
+}
+
+c_double c_double::operator/ (const c_double & right) const
+{
+	return c_double(f_value / right.f_value);
+}
+
+c_double c_double::operator+ (const c_double & right) const
+{
+	return c_double(f_value + right.f_value);
+}
+
+c_double c_double::operator- (const c_double & right) const
+{
+	return c_double(f_value - right.f_value);
+}
+
+
+
+
+
+c_double::t_value c_double::get (void) const
+{
+	return f_value;
+}
+
+void c_double::set (c_double::t_value value)
+{
+	f_value = value;
 }

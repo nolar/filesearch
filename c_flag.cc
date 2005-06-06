@@ -1,17 +1,30 @@
-#include <string.h>
 #include "c_flag.h"
+#include "globals.h"
+#include <string.h>
+
+
+
+
 
 c_flag::c_flag ()
-	: c_object
+	: c_object()
 	, f_value()
 {
 }
 
+c_flag::c_flag (const c_flag & right)
+	: c_object()
+	, f_value(right.f_value)
+{
+}
+
 c_flag::c_flag (bool value)
-	: c_object
+	: c_object()
 	, f_value(value)
 {
 }
+
+
 
 
 
@@ -38,23 +51,38 @@ void c_flag::stream_setdata (const void * buffer, t_object_size size)
 
 
 
-bool c_flag::get ()
-{
-	return f_value;
-}
 
-void c_flag::set (bool value)
+c_flag & c_flag::operator= (const c_flag & right)
 {
-	f_value = value;
+	f_value = right.f_value;
+	return *this;
 }
-
 
 bool c_flag::operator== (const c_flag & right) const
 {
 	return f_value == right.f_value;
 }
 
+bool c_flag::operator!= (const c_flag & right) const
+{
+	return f_value != right.f_value;
+}
+
 c_flag::operator bool () const
 {
 	return f_value;
+}
+
+
+
+
+
+c_flag::t_value c_flag::get (void) const
+{
+	return f_value;
+}
+
+void c_flag::set (c_flag::t_value value)
+{
+	f_value = value;
 }

@@ -3,48 +3,84 @@
 
 #include "database.h"
 #include <mysql.h>
-
-usined namespace std; //!!!!!!!!
+#include <vector>
+#include <string>
 
 class c_database_mysql : public c_database {
 private:
 	MYSQL handle;
+	MYSQL_STMT * stmt_requests    ;
+	MYSQL_STMT * stmt_startup     ;
+	MYSQL_STMT * stmt_status_check;
+	MYSQL_STMT * stmt_status_renew;
+	struct {
+		struct {
+			my_bool null_id       ; long   data_id       ;
+			my_bool null_protocol ; long   data_protocol ;
+			my_bool null_isnetwork; long   data_isnetwork;
+			my_bool null_ipaddr   ; char * data_ipaddr   ; unsigned long length_ipaddr   ; std::auto_ptr<char> auto_ipaddr   ;
+			my_bool null_netmask  ; long   data_netmask  ;
+			my_bool null_ipport   ; long   data_ipport   ;
+			my_bool null_share    ; char * data_share    ; unsigned long length_share    ; std::auto_ptr<char> auto_share    ;
+			my_bool null_username ; char * data_username ; unsigned long length_username ; std::auto_ptr<char> auto_username ;
+			my_bool null_password ; char * data_password ; unsigned long length_password ; std::auto_ptr<char> auto_password ;
+			my_bool null_workgroup; char * data_workgroup; unsigned long length_workgroup; std::auto_ptr<char> auto_workgroup;
+			my_bool null_selfname ; char * data_selfname ; unsigned long length_selfname ; std::auto_ptr<char> auto_selfname ;
+			my_bool null_timeout  ; long   data_timeout  ;
+			my_bool null_depth    ; long   data_depth    ;
+		} requests;
+		struct {
+			my_bool null_startup; MYSQL_TIME data_startup;
+		} startup;
+		struct {
+			my_bool null_count   ; long       data_count   ;
+			my_bool null_startup ; MYSQL_TIME data_startup ;
+			my_bool null_process ; long       data_process ;
+			my_bool null_protocol; long       data_protocol;
+			my_bool null_ipaddr  ; char *     data_ipaddr  ; unsigned long length_ipaddr  ; std::auto_ptr<char> auto_ipaddr  ;
+			my_bool null_ipport  ; long       data_ipport  ;
+			my_bool null_share   ; char *     data_share   ; unsigned long length_share   ; std::auto_ptr<char> auto_share   ;
+			my_bool null_username; char *     data_username; unsigned long length_username; std::auto_ptr<char> auto_username;
+		} status_check;
+	} binds;
+	MYSQL_STMT * _stmt_make (MYSQL_BIND * params, MYSQL_BIND * results, std::string query);
+	void _stmt_execute (MYSQL_STMT * stmt);
+	bool _stmt_fetch (MYSQL_STMT * stmt);
 	//
-	vector<t_sqlid> _resource_cache;
-	bool _resource_find  (t_sqlid &id, bool &changed, c_request request, string share);
-	bool _resource_add   (t_sqlid &id, c_request request, string share);
+	std::vector<c_unsigned> _resource_cache;
+	bool _resource_find  (c_unsigned & id, bool & changed, c_request request, c_string share);
+	bool _resource_add   (c_unsigned & id, c_request request, c_string share);
 	void _resource_loose (c_request request);
 	void _resource_loosf (c_request request);
-	void _resource_touch (vector<t_sqlid> ids);
+	void _resource_touch (std::vector<c_unsigned> ids);
 	void _resource_flush (bool forced);
 
-	vector<t_sqlid> _file_cache;
-	bool _file_find   (t_sqlid &id, bool &changed, c_request request, c_fileinfo fileinfo);
-	bool _file_add    (t_sqlid &id, c_request request, c_fileinfo fileinfo);
+	std::vector<c_unsigned> _file_cache;
+	bool _file_find   (c_unsigned & id, bool & changed, c_request request, c_fileinfo fileinfo);
+	bool _file_add    (c_unsigned & id, c_request request, c_fileinfo fileinfo);
 	void _file_loose  (c_request request);
-	void _file_touch  (vector<t_sqlid> ids);
+	void _file_touch  (std::vector<c_unsigned> ids);
 	void _file_flush  (bool forced);
-	void _file_change (t_sqlid id, c_fileinfo fileinfo);
-
+	void _file_change (c_unsigned id, c_fileinfo fileinfo);
 protected:
 	//
-	string f_host;
-	string f_user;
-	string f_pass;
-	string f_db;
-	unsigned int f_port;
-	string f_socket;
-	unsigned long f_flags;
+	c_string f_host;
+	c_string f_user;
+	c_string f_pass;
+	c_string f_db;
+	c_unsigned f_port;
+	c_string f_socket;
+	c_unsigned f_flags;
 	// field for per-thread initialization
-	static t_pident _initialized_pid;
+	static pid_t _initialized_pid;
 	// supplimentary routines
-	string escape (string value);
-	string quote  (string value);
-	string stamp  (t_time value);
+	c_string escape (c_string value);
+	c_string quote  (c_string value);
+//	string stamp  (t_time value);
 ///	void thread_lock ();
 ///	void thread_unlock ();
 public:
-	c_database_mysql (string host, string user, string pass, string db, unsigned int port, string socket, unsigned long flags);
+	c_database_mysql (c_string host, c_string user, c_string pass, c_string db, c_unsigned port, c_string socket, c_unsigned flags);
 	virtual ~c_database_mysql ();
 	virtual c_database * duplicate ();
 

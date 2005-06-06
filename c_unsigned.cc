@@ -1,17 +1,30 @@
-#include <string.h>
 #include "c_unsigned.h"
+#include "globals.h"
+#include <string.h>
+
+
+
+
 
 c_unsigned::c_unsigned ()
-	: c_object
+	: c_object()
 	, f_value()
 {
 }
 
-c_unsigned::c_unsigned (unsigned value)
-	: c_object
+c_unsigned::c_unsigned (const c_unsigned & right)
+	: c_object()
+	, f_value(right.f_value)
+{
+}
+
+c_unsigned::c_unsigned (c_unsigned::t_value value)
+	: c_object()
 	, f_value(value)
 {
 }
+
+
 
 
 
@@ -38,33 +51,10 @@ void c_unsigned::stream_setdata (const void * buffer, t_object_size size)
 
 
 
-unsigned c_unsigned::get ()
-{
-	return f_value;
-}
-
-void c_unsigned::set (unsigned value)
-{
-	f_value = value;
-}
-
-std::string c_unsigned::ascii (int pad)
-{
-	return _sprintf("%*u", pad, f_value);
-}
-
-
-
 
 c_unsigned & c_unsigned::operator= (const c_unsigned & right)
 {
 	f_value = right.f_value;
-	return *this;
-}
-
-c_unsigned & c_unsigned::operator= (const unsigned value)
-{
-	f_value = value;
 	return *this;
 }
 
@@ -103,9 +93,14 @@ c_unsigned c_unsigned::operator* (const c_unsigned & right) const
 	return c_unsigned(f_value * right.f_value);
 }
 
-c_unsigned c_unsigned::operator* (const unsigned value) const
+c_unsigned c_unsigned::operator/ (const c_unsigned & right) const
 {
-	return c_unsigned(f_value * value);
+	return c_unsigned(f_value / right.f_value);
+}
+
+c_unsigned c_unsigned::operator% (const c_unsigned & right) const
+{
+	return c_unsigned(f_value % right.f_value);
 }
 
 c_unsigned c_unsigned::operator+ (const c_unsigned & right) const
@@ -113,7 +108,26 @@ c_unsigned c_unsigned::operator+ (const c_unsigned & right) const
 	return c_unsigned(f_value + right.f_value);
 }
 
-c_unsigned c_unsigned::operator+ (const unsigned value) const
+c_unsigned c_unsigned::operator- (const c_unsigned & right) const
 {
-	return c_unsigned(f_value + value);
+	return c_unsigned(f_value - right.f_value);
+}
+
+
+
+
+
+c_unsigned::t_value c_unsigned::get (void) const
+{
+	return f_value;
+}
+
+void c_unsigned::set (c_unsigned::t_value value)
+{
+	f_value = value;
+}
+
+std::string c_unsigned::ascii (int pad) const
+{
+	return string_format("%*u", pad, f_value);
 }

@@ -1,28 +1,29 @@
 #ifndef _FILESEARCH_EXCEPTIONS_BASIC_
 #define _FILESEARCH_EXCEPTIONS_BASIC_
 
-#include <string>
 #include "config.h"
+#include <string>
 
 class e_basic
 {
 private:
-	std::string f_message;
+	const char * f_file;
+	unsigned f_line;
+	std::string f_comment;
+	bool use_errno;
+	bool use_error;
+	int f_errno;
 	std::string f_error;
-	int f_number;
 protected:
 public:
-	e_basic (std::string a_message);
-	e_basic (std::string a_message, std::string a_error);
-	e_basic (std::string a_message, int a_number);
-	e_basic (std::string a_message, int a_number, std::string a_error);
+	e_basic (const char * a_file, unsigned a_line, std::string a_comment);
+	e_basic (const char * a_file, unsigned a_line, std::string a_comment, int a_errno);
+	e_basic (const char * a_file, unsigned a_line, std::string a_comment, std::string a_error);
 	virtual ~e_basic () throw ();
 
+	const char * file () const throw ();
+	unsigned line () const throw ();
 	virtual std::string what () const throw ();
-
-	std::string message ();
-	std::string error ();
-	int number ();
 };
 
 #endif

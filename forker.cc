@@ -6,9 +6,9 @@
 #include <signal.h>
 #include <iostream>
 #include <iomanip>
+
 #include "forker.h"
-#include "convert.h"
-#include "io.h"
+#include "c_stream.h"
 
 
 std::vector<c_forker*> _forkers;
@@ -18,9 +18,9 @@ std::vector<c_forker*> _forkers;
 void forker_signal_child (t_signal)
 {
 	int wstat;
-	t_pident pid;
+	pid_t pid;
 	while ((pid = c_forker::wait_child_nohang(&wstat)) > 0) {
-		DEBUG("Controller process "+convert::pident2print(pid)+" exited: "+convert::pstatus2print(wstat)+".");
+		DEBUG("Controller process "+c_unsigned(pid).ascii()+" exited: "+c_forker::wstat(wstat)+".");
 		for (std::vector<c_forker*>::iterator i = _forkers.begin(); i != _forkers.end(); i++)
 			(*i)->erase(pid, wstat);
 	}
@@ -67,7 +67,7 @@ c_forker::~c_forker ()
 
 
 
-t_pident c_forker::fork (t_work_func work, t_void_func init, t_void_func free, t_catch_func catcher)
+pid_t c_forker::fork (t_work_func work, t_void_func init, t_void_func free, t_catch_func catcher)
 {
 	// wating until there are some free lots for children
 	//??? can not understand this. when unblocking is commented, smb-scanners consoumes
@@ -80,12 +80,12 @@ t_pident c_forker::fork (t_work_func work, t_void_func init, t_void_func free, t
 	signal_block(SIGCHLD);
 
 	// forking
-	t_pident pid = (t_pident) ::fork();
+	pid_t pid = (pid_t) ::fork();
 	int childstatus;
 	switch (pid)
 	{
 		case -1:
-			throw e_fork("Can not fork process.", errno, strerror(errno));
+			throw e_fork(__FILE__,__LINE__,"Can not fork process.", errno);
 		case  0:
 			try
 			{
@@ -95,17 +95,17 @@ t_pident c_forker::fork (t_work_func work, t_void_func init, t_void_func free, t
 			}
 			catch (std::exception &e)
 			{
-				LOG("Exception in process id "+convert::pident2print(getpid())+": "+e.what());
+				LOG("Exception in process id "+c_unsigned(pid).ascii()+": "+e.what());
 				childstatus = catcher ? catcher(&e, NULL) : -1;
 			}
 			catch (e_basic &e)
 			{
-				LOG("Exception in process id "+convert::pident2print(getpid())+": "+e.what());
+				LOG("Exception in process id "+c_unsigned(pid).ascii()+": "+e.what());
 				childstatus = catcher ? catcher(NULL, &e) : -1;
 			}
 			catch (...)
 			{
-				LOG("Exception without type and message in process id "+convert::pident2print(getpid())+".");
+				LOG("Exception without type and message in process id "+c_unsigned(pid).ascii()+".");
 				childstatus = catcher ? catcher(NULL, NULL) : -1;
 			}
 			_exit(childstatus);
@@ -117,10 +117,10 @@ t_pident c_forker::fork (t_work_func work, t_void_func init, t_void_func free, t
 
 
 
-bool c_forker::erase (t_pident pid, int wstat)
+bool c_forker::erase (pid_t pid, int wstat)
 {
 	bool found = false;
-	for (std::vector<t_pident>::iterator i = f_children.begin(); i != f_children.end(); i++)
+	for (std::vector<pid_t>::iterator i = f_children.begin(); i != f_children.end(); i++)
 	{
 		if (*i == pid)
 		{
@@ -151,16 +151,26 @@ unsigned c_forker::count ()
 
 
 
-t_pident c_forker::exec (char * cmd, char ** arg, char ** env, std::map<t_fd,t_fd> fds)
+pid_t c_forker::exec (char * cmd, char ** arg, char ** env, std::map<t_fd,t_fd> fds)
 {
-	t_pident pid = vfork();
+	pid_t pid = vfork();
 	switch (pid)
 	{
 		case -1:
-			throw e_fork("Can not fork process for executing.", errno, strerror(errno));
+			throw e_fork(__FILE__,__LINE__,"Can not fork process for executing.", errno);
 		case  0:
 			for (std::map<int,int>::const_iterator i = fds.begin(); i != fds.end(); i++)
-				io::fd_move(i->second, i->first);
+			{
+				int oldfd = i->second;
+				int newfd = i->first;
+				if (oldfd == newfd) continue;
+				if ((oldfd != -1) && (::fcntl(oldfd, F_GETFL, 0) == -1))
+					throw e_basic(__FILE__,__LINE__,"Can not copy fd "+c_unsigned(oldfd).ascii()+" to fd "+c_unsigned(newfd).ascii()+" because source fd is bad.", errno);
+				if (newfd != -1) ::close(newfd);
+				if ((oldfd != -1) && (newfd != -1) && (::fcntl(oldfd, F_DUPFD, newfd) == -1))
+					throw e_basic(__FILE__,__LINE__,"Can not copy fd "+c_unsigned(oldfd).ascii()+" to fd "+c_unsigned(newfd).ascii()+" because duping failed.", errno);
+				if (oldfd != -1) ::close(oldfd);
+			}
 			::execve(cmd, arg, env);
 			LOG("Can not execute '"+cmd+"': "+strerror(errno));
 			_exit(-1);
@@ -169,7 +179,7 @@ t_pident c_forker::exec (char * cmd, char ** arg, char ** env, std::map<t_fd,t_f
 	};
 }
 
-t_pident c_forker::exec (std::string cmd, std::vector<std::string> arg, std::vector<std::string> env, std::map<t_fd,t_fd> fds)
+pid_t c_forker::exec (std::string cmd, std::vector<std::string> arg, std::vector<std::string> env, std::map<t_fd,t_fd> fds)
 {
 	// preparing arg
 	int argc = arg.size();
@@ -234,33 +244,43 @@ void c_forker::signal_ignore (t_signal signal)
 
 
 
-t_pident c_forker::wait_nohang (t_pident pid, int * wstat)
+pid_t c_forker::wait_nohang (pid_t pid, int * wstat)
 {
 	return ::waitpid(pid, wstat, WNOHANG);
 }
 
-t_pident c_forker::wait_hang (t_pident pid, int * wstat)
+pid_t c_forker::wait_hang (pid_t pid, int * wstat)
 {
 	return ::waitpid(pid, wstat, 0);
 }
 
-t_pident c_forker::wait_child_nohang (int * wstat)
+pid_t c_forker::wait_child_nohang (int * wstat)
 {
 	return wait_nohang(-1, wstat);
 }
 
-t_pident c_forker::wait_child_hang (int * wstat)
+pid_t c_forker::wait_child_hang (int * wstat)
 {
 	return wait_hang(-1, wstat);
 }
 
-t_pident c_forker::wait_group_nohang (int * wstat)
+pid_t c_forker::wait_group_nohang (int * wstat)
 {
 	return wait_nohang(0, wstat);
 }
 
-t_pident c_forker::wait_group_hang (int * wstat)
+pid_t c_forker::wait_group_hang (int * wstat)
 {
 	return wait_hang(0, wstat);
 }
 
+std::string c_forker::wstat (int value)
+{
+	return
+		(WIFEXITED  (value) && !WEXITSTATUS(value)) ? (std::string()+"success"                                               ) :
+		(WIFEXITED  (value)                       ) ? (std::string()+"code "         + c_unsigned(WEXITSTATUS(value)).ascii()) :
+		(WIFSIGNALED(value) && !WCOREDUMP(value)  ) ? (std::string()+"signal "       + c_unsigned(WTERMSIG(value)   ).ascii()) :
+		(WIFSIGNALED(value)                       ) ? (std::string()+"signal(core) " + c_unsigned(WTERMSIG(value)   ).ascii()) :
+		(WIFSTOPPED (value)                       ) ? (std::string()+"signal(stop) " + c_unsigned(WSTOPSIG(value)   ).ascii()) :
+							      (std::string()+"status "       + c_unsigned(value             ).ascii()) ;
+}

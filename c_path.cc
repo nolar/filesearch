@@ -1,24 +1,48 @@
-#include <string.h>
 #include "c_path.h"
+#include "globals.h"
+#include <string.h>
+
+
+
+
 
 c_path::c_path ()
-	: c_object
+	: c_object()
 	, f_value()
 {
 }
 
-c_path::c_path (char * value)
+c_path::c_path (const c_path & right)
 	: c_object()
+	, f_value(right.f_value)
 {
-	f_value = _split(value, "/");
 }
 
-c_path::c_path (std::string value)
+c_path::c_path (c_path::t_value value)
 	: c_object()
+	, f_value(value)
 {
-	f_value = _split(value, "/");
 }
 
+c_path::c_path (c_path::t_value value, c_path::t_filename child)
+	: c_object()
+	, f_value(value)
+{
+	f_value.push_back(child);
+}
+
+c_path::c_path (c_path::t_filename value, c_path::t_filename delimiter)
+	: c_object()
+{
+	f_value = string_split(value, delimiter);
+}
+
+c_path::c_path (c_path::t_filename value, c_path::t_filename delimiter, c_path::t_filename child)
+	: c_object()
+{
+	f_value = string_split(value, delimiter);
+	f_value.push_back(child);
+}
 
 
 
@@ -72,10 +96,32 @@ void c_path::stream_setdata (const void * buffer, t_object_size size)
 
 
 
+
+c_path & c_path::operator= (const c_path & right)
+{
+	f_value = right.f_value;
+	return *this;
+}
+
 bool c_path::operator== (const c_path & right) const
 {
-	return f_value == right.f_value
-	    ;
+	return f_value == right.f_value;
+}
+
+bool c_path::operator!= (const c_path & right) const
+{
+	return f_value != right.f_value;
+}
+
+c_path c_path::operator+ (c_path::t_filename child) const
+{
+	return c_path(f_value, child);
+}
+
+c_path & c_path::operator+= (c_path::t_filename child)
+{
+	f_value.push_back(child);
+	return *this;
 }
 
 
@@ -87,33 +133,25 @@ bool c_path::empty () const
 	return f_value.empty();
 }
 
-void c_path::add (std::string value)
+c_path::t_filename c_path::basename () const
 {
-	f_value.push_back(value);
+	return f_value.size() ? f_value[f_value.size()-1] : t_filename();
 }
 
-
-
-
-std::string c_path::basename ()
+c_path::t_filename c_path::dirname (bool heading_slash, bool empty_slash) const
 {
-	return f_value.size() ? f_value[f_value.size()-1] : std::string();
-}
-
-std::string c_path::dirname (bool heading_slash, bool empty_slash)
-{
-	std::string result;
+	t_filename result;
 	if (!f_value.size()) result = empty_slash ? "/" : ""; else
-	for (std::vector<std::string>::const_iterator i = f_value.begin(); (i+1) != f_value.end(); i++)
+	for (t_value::const_iterator i = f_value.begin(); (i+1) != f_value.end(); i++)
 		result = result + ((heading_slash || !result.empty()) ? "/" : "") + *i;
 	return result;
 }
 
-std::string c_path::ascii (bool heading_slash, bool empty_slash)
+c_path::t_filename c_path::ascii (bool heading_slash, bool empty_slash) const
 {
-	std::string result;
+	t_filename result;
 	if (!f_value.size()) result = empty_slash ? "/" : ""; else
-	for (std::vector<std::string>::const_iterator i = f_value.begin(); i != f_value.end(); i++)
+	for (t_value::const_iterator i = f_value.begin(); i != f_value.end(); i++)
 		result = result + ((heading_slash || !result.empty()) ? "/" : "") + *i;
 	return result;
 }

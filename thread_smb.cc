@@ -5,24 +5,25 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <signal.h>
+
 #include "thread_smb.h"
-#include "io.h"
+#include "c_stream.h"
 #include "thread.h"
-#include "options.h"
+#include "globals.h"
 #include "database.h"
-#include "e_database.h"
-#include "convert.h"
 
 extern c_database * database;
 
 //
-vector< pair<string,t_sqlid> > thread_smb__shares;
+typedef std::pair<std::string,c_unsigned> t_thread_smb__share;
+typedef std::vector<t_thread_smb__share> t_thread_smb__shares;
+t_thread_smb__shares thread_smb__shares;
 
 
-void thread_smb__action_resource (c_request request, t_path path)
+void thread_smb__action_resource (c_request request, c_path path)
 {
-	pair<string,t_sqlid> item;
-	item.first  = path.empty()?string():path[path.size()-1];
+	t_thread_smb__share item;
+	item.first  = path.basename();
 	item.second = database->report_share(request, item.first);
 	thread_smb__shares.push_back(item);
 }
@@ -43,7 +44,7 @@ void thread_smb__action_file (c_request request, c_fileinfo fileinfo)
 	database->report_file(request, fileinfo);
 }
 
-void thread_smb__action_start (c_request request)
+void thread_smb__action_dataflow (c_request request)
 {
 	database->status_renew(request);
 }
@@ -54,51 +55,50 @@ void thread_smb__action_start (c_request request)
 c_request  thread_smb__request;
 int thread_smb ()
 {
-	int result = 0;
 	c_request request = thread_smb__request;
+	std::string urlstrh = request.ascii();
+	std::string urlstrs;
+	int result = 0;
 	// getting list of shares
 	thread_smb__shares.clear();
 	if (request.share().empty())
 	{
-		DEBUG("(smb) Scanning for shares on ip='"+convert::ipaddr2print(request.address())+"',username='"+request.username()+"'.");
+		DEBUG("Scanning for shares on url '"+urlstrh+"'.");
 		c_request sharerequest = request;
 		sharerequest.depth(1);
-		if (thread_wrap(options::command_smb, sharerequest,
+		if (thread_wrap(default_scanner_smb, sharerequest,
 			thread_smb__action_resource,
 			NULL,
 			NULL,
-			NULL,
-			NULL,
-			thread_smb__action_start))
+			thread_smb__action_dataflow))
 		{
-			DEBUG("(smb) Flushing shares on ip='"+convert::ipaddr2print(request.address())+"',username='"+request.username()+"'.");
+			DEBUG("Flushing shares on url '"+urlstrh+"'.");
 			database->flush_shares(sharerequest);
 		}
-		DEBUG("(smb) Scanned for shares on ip='"+convert::ipaddr2print(request.address())+"',username='"+request.username()+"'. Got "+convert::ui2str(thread_smb__shares.size())+" shares.");
+		DEBUG("Scanned for shares on url '"+urlstrh+"'. Got "+c_unsigned(thread_smb__shares.size()).ascii()+" shares.");
 	} else {
-		DEBUG("(smb) Requested share '"+request.share()+"' on ip='"+convert::ipaddr2print(request.address())+"',username='"+request.username()+"'.");
-		t_path filepath; filepath.push_back(request.share());
+		DEBUG("Requested share '"+request.share().ascii()+"' on url '"+urlstrh+"'.");
+		c_path filepath(request.share().ascii(), default_path_delimiter);
 		thread_smb__action_resource(request, filepath);
 	}
 	// scanning each share for files with independent sequentive thread
-	for (vector< pair<string,t_sqlid> >::const_iterator i = thread_smb__shares.begin(); i != thread_smb__shares.end(); i++)
+	for (t_thread_smb__shares::const_iterator i = thread_smb__shares.begin(); i != thread_smb__shares.end(); i++)
 	{
-		DEBUG("(smb) Scanning for files on ip='"+convert::ipaddr2print(request.address())+"',share='"+i->first+"',username='"+request.username()+"'.");
+		urlstrs = urlstrh + "/" + i->first;
+		DEBUG("Scanning for files on url '"+urlstrs+"'.");
 		c_request sharerequest = request;
 		sharerequest.share(i->first);
-		sharerequest.resourceid(i->second);
-		if (thread_wrap(options::command_smb, sharerequest,
+		sharerequest.resource(i->second);
+		if (thread_wrap(default_scanner_smb, sharerequest,
 			NULL,
 			thread_smb__action_dir,
 			thread_smb__action_file,
-			NULL,
-			NULL,
-			thread_smb__action_start))
+			thread_smb__action_dataflow))
 		{
-			DEBUG("(smb) Flushing files on ip='"+convert::ipaddr2print(request.address())+"',share='"+i->first+"',username='"+request.username()+"'.");
+			DEBUG("Flushing files on url '"+urlstrs+"'.");
 			database->flush_files(sharerequest);
 		}
-		DEBUG("(smb) Scanned for files on ip='"+convert::ipaddr2print(request.address())+"',share='"+i->first+"',username='"+request.username()+"'.");
+		DEBUG("Scanned for files on url '"+urlstrs+"'.");
 	}
 	return result;
 }

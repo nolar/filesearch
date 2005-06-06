@@ -1,7 +1,6 @@
 #ifndef _FILESEARCH_EXCEPTIONS_SAMBA_
 #define _FILESEARCH_EXCEPTIONS_SAMBA_
 
-#include <string>
 #include "config.h"
 #include "e_basic.h"
 
@@ -10,9 +9,9 @@ class e_samba : public e_basic
 private:
 protected:
 public:
-	e_samba (std::string a_message) : e_basic (a_message) {}
-	e_samba (std::string a_message, std::string a_error) : e_basic (a_message,a_error) {}
-	e_samba (std::string a_message, int a_number, std::string a_error) : e_basic (a_message,a_number,a_error) {}
+	e_samba (const char * a_file, unsigned a_line, std::string a_comment) : e_basic (a_file, a_line, a_comment) {}
+	e_samba (const char * a_file, unsigned a_line, std::string a_comment, int a_errno) : e_basic (a_file, a_line, a_comment, a_errno) {}
+	e_samba (const char * a_file, unsigned a_line, std::string a_comment, std::string a_error) : e_basic (a_file, a_line, a_comment, a_error) {}
 };
 
 #endif

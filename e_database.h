@@ -1,7 +1,6 @@
 #ifndef _FILESEARCH_EXCEPTIONS_DATABASE_
 #define _FILESEARCH_EXCEPTIONS_DATABASE_
 
-#include <string>
 #include "config.h"
 #include "e_basic.h"
 
@@ -10,9 +9,9 @@ class e_database : public e_basic
 private:
 protected:
 public:
-	e_database (std::string a_message) : e_basic (a_message) {}
-	e_database (std::string a_message, std::string a_error) : e_basic (a_message,a_error) {}
-	e_database (std::string a_message, int a_number, std::string a_error) : e_basic (a_message,a_number,a_error) {}
+	e_database (const char * a_file, unsigned a_line, std::string a_comment) : e_basic (a_file, a_line, a_comment) {}
+	e_database (const char * a_file, unsigned a_line, std::string a_comment, int a_errno) : e_basic (a_file, a_line, a_comment, a_errno) {}
+	e_database (const char * a_file, unsigned a_line, std::string a_comment, std::string a_error) : e_basic (a_file, a_line, a_comment, a_error) {}
 };
 
 #endif
