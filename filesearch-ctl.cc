@@ -104,14 +104,14 @@ int main (int argc, char ** argv, char ** env) {
 		}
 		// freeing engine's resources
 	}
-	catch (std::exception &e)
-	{
-		LOG("Exception: "+e.what());
-		exitcode = 1;
-	}
 	catch (e_basic &e)
 	{
-		LOG("Exception: "+e.what());
+		LOG("Exception in file '"+e.file()+"' on line "+string_format("%d",e.line())+": "+e.what());
+		exitcode = 1;
+	}
+	catch (std::exception &e)
+	{
+		LOG("Exception in library: "+e.what());
 		exitcode = 1;
 	}
 	catch (...)

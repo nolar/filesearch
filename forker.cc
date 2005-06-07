@@ -93,19 +93,19 @@ pid_t c_forker::fork (t_work_func work, t_void_func init, t_void_func free, t_ca
 				childstatus = work();
 				if (free) free();
 			}
-			catch (std::exception &e)
-			{
-				LOG("Exception in process id "+c_unsigned(pid).ascii()+": "+e.what());
-				childstatus = catcher ? catcher(&e, NULL) : -1;
-			}
 			catch (e_basic &e)
 			{
-				LOG("Exception in process id "+c_unsigned(pid).ascii()+": "+e.what());
+				LOG("Exception in file '"+e.file()+"' on line "+string_format("%d",e.line())+": "+e.what());
 				childstatus = catcher ? catcher(NULL, &e) : -1;
+			}
+			catch (std::exception &e)
+			{
+				LOG("Exception in library: "+e.what());
+				childstatus = catcher ? catcher(&e, NULL) : -1;
 			}
 			catch (...)
 			{
-				LOG("Exception without type and message in process id "+c_unsigned(pid).ascii()+".");
+				LOG("Exception without type and message.");
 				childstatus = catcher ? catcher(NULL, NULL) : -1;
 			}
 			_exit(childstatus);

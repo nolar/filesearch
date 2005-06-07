@@ -1,11 +1,13 @@
 #ifndef _FILESEARCH_TYPEDEFS_
 #define _FILESEARCH_TYPEDEFS_
 
-#include "config.h"
 #include <string>
 #include <vector>
 #include <map>
 #include <sys/types.h>
+
+#include "config.h"
+
 //#include "c_stream.h"
 #include "c_identifier.h"
 //#include "c_signed.h"
@@ -50,6 +52,8 @@ extern const int fd_debug;
 extern long     default_timeout_task__sec;
 extern long     default_timeout_task__usec;
 extern unsigned default_children_count;
+extern unsigned default_database_cachesize_resource;
+extern unsigned default_database_cachesize_file;
 extern char *   default_path_delimiter;
 extern char *   default_scanner_smb;
 extern char *   default_request_username_smb;

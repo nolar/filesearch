@@ -30,11 +30,13 @@ const int fd_debug                      = 2;
 
 long     default_timeout_task__sec	= 1;
 long     default_timeout_task__usec	= 0;
-unsigned default_children_count   	= 5;
+unsigned default_children_count   	= 30;
+unsigned default_database_cachesize_resource = 5;
+unsigned default_database_cachesize_file     = 5;
 char *   default_path_delimiter         = "/";
 char *   default_scanner_smb            = "./filesearch-smb";
 char *   default_request_username_smb   = "guest";
-unsigned default_request_depth          = 3;
+unsigned default_request_depth          = 100;
 
 long   logging_timeout__sec	= 1;
 long   logging_timeout__usec	= 0;

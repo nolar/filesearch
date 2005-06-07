@@ -94,7 +94,7 @@ bool thread_wrap (std::string command, c_request request,
 		close(ifd[0]); close(ofd[1]);
 		close(ifd[1]); close(ofd[0]);
 		STATUS("");
-		throw e_basic(__FILE__,__LINE__,"Can not start scanner process.", e.what());
+		throw;
 	}
 	DEBUG("Created scanner process "+pidstr+" for url '"+urlstr+"'.");
 
@@ -121,7 +121,7 @@ bool thread_wrap (std::string command, c_request request,
 	catch (e_basic & e) {
 		close(ifd[1]); close(ofd[0]);
 		STATUS("");
-		throw e_basic(__FILE__,__LINE__,"Can not send task to scanner process "+pidstr+".", e.what());
+		throw;
 	}
 
 	// reading and handling output of scanner process

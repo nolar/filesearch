@@ -13,6 +13,17 @@ private:
 	MYSQL_STMT * stmt_startup     ;
 	MYSQL_STMT * stmt_status_check;
 	MYSQL_STMT * stmt_status_renew;
+	MYSQL_STMT * stmt_status_clean;
+	MYSQL_STMT * stmt_resource_find;
+	MYSQL_STMT * stmt_resource_add;
+	MYSQL_STMT * stmt_resource_loose;
+	MYSQL_STMT * stmt_resource_loosf;
+	MYSQL_STMT * stmt_resource_touch;
+	MYSQL_STMT * stmt_file_find;
+	MYSQL_STMT * stmt_file_add;
+	MYSQL_STMT * stmt_file_loose;
+	MYSQL_STMT * stmt_file_touch;
+	MYSQL_STMT * stmt_file_change;
 	struct {
 		struct {
 			my_bool null_id       ; long   data_id       ;
@@ -42,10 +53,81 @@ private:
 			my_bool null_share   ; char *     data_share   ; unsigned long length_share   ; std::auto_ptr<char> auto_share   ;
 			my_bool null_username; char *     data_username; unsigned long length_username; std::auto_ptr<char> auto_username;
 		} status_check;
+		struct {
+			my_bool null_startup ; MYSQL_TIME data_startup ;
+			my_bool null_process ; long       data_process ;
+			my_bool null_protocol; long       data_protocol;
+			my_bool null_ipaddr  ; char *     data_ipaddr  ; unsigned long length_ipaddr  ; std::auto_ptr<char> auto_ipaddr  ;
+			my_bool null_ipport  ; long       data_ipport  ;
+			my_bool null_share   ; char *     data_share   ; unsigned long length_share   ; std::auto_ptr<char> auto_share   ;
+			my_bool null_username; char *     data_username; unsigned long length_username; std::auto_ptr<char> auto_username;
+		} status_renew;
+		struct {
+			my_bool null_startup ; MYSQL_TIME data_startup ;
+			my_bool null_process ; long       data_process ;
+		} status_clean;
+		struct {
+			my_bool null_protocol; long       data_protocol;
+			my_bool null_ipaddr  ; char *     data_ipaddr  ; unsigned long length_ipaddr  ; std::auto_ptr<char> auto_ipaddr  ;
+			my_bool null_ipport  ; long       data_ipport  ;
+			my_bool null_share   ; char *     data_share   ; unsigned long length_share   ; std::auto_ptr<char> auto_share   ;
+			my_bool null_username; char *     data_username; unsigned long length_username; std::auto_ptr<char> auto_username;
+			my_bool null_id      ; long       data_id      ;
+			my_bool null_lost    ; MYSQL_TIME data_lost    ;
+		} resource_find;
+		struct {
+			my_bool null_request ; long       data_request ;
+			my_bool null_ipaddr  ; char *     data_ipaddr  ; unsigned long length_ipaddr  ; std::auto_ptr<char> auto_ipaddr  ;
+			my_bool null_share   ; char *     data_share   ; unsigned long length_share   ; std::auto_ptr<char> auto_share   ;
+		} resource_add;
+		struct {
+			my_bool null_ipaddr  ; char *     data_ipaddr  ; unsigned long length_ipaddr  ; std::auto_ptr<char> auto_ipaddr  ;
+			my_bool null_seen    ; MYSQL_TIME data_seen    ;
+		} resource_loose;
+		struct {
+			my_bool null_ipaddr  ; char *     data_ipaddr  ; unsigned long length_ipaddr  ; std::auto_ptr<char> auto_ipaddr  ;
+			my_bool null_seen    ; MYSQL_TIME data_seen    ;
+		} resource_loosf;
+		struct {
+			my_bool null_id      ; long       data_id      ;
+		} resource_touch;
+		struct {
+			my_bool null_resource; long       data_resource;
+			my_bool null_path    ; char *     data_path    ; unsigned long length_path    ; std::auto_ptr<char> auto_path    ;
+			my_bool null_id      ; long       data_id      ;
+			my_bool null_lost    ; MYSQL_TIME data_lost    ;
+			my_bool null_container; long       data_container;
+			my_bool null_size     ; long long  data_size   ;
+			my_bool null_ctime   ; MYSQL_TIME data_ctime   ;
+			my_bool null_mtime   ; MYSQL_TIME data_mtime   ;
+		} file_find;
+		struct {
+			my_bool null_resource; long       data_resource;
+			my_bool null_path    ; char *     data_path    ; unsigned long length_path    ; std::auto_ptr<char> auto_path    ;
+			my_bool null_name    ; char *     data_name    ; unsigned long length_name    ; std::auto_ptr<char> auto_name    ;
+			my_bool null_container; long       data_container;
+			my_bool null_size     ; long long  data_size   ;
+			my_bool null_ctime   ; MYSQL_TIME data_ctime   ;
+			my_bool null_mtime   ; MYSQL_TIME data_mtime   ;
+		} file_add;
+		struct {
+			my_bool null_resource; long       data_resource;
+			my_bool null_seen    ; MYSQL_TIME data_seen    ;
+		} file_loose;
+		struct {
+			my_bool null_id      ; long       data_id      ;
+		} file_touch;
+		struct {
+			my_bool null_container; long       data_container;
+			my_bool null_size     ; long long  data_size   ;
+			my_bool null_ctime   ; MYSQL_TIME data_ctime   ;
+			my_bool null_mtime   ; MYSQL_TIME data_mtime   ;
+			my_bool null_id      ; long       data_id      ;
+		} file_change;
 	} binds;
-	MYSQL_STMT * _stmt_make (MYSQL_BIND * params, MYSQL_BIND * results, std::string query);
-	void _stmt_execute (MYSQL_STMT * stmt);
-	bool _stmt_fetch (MYSQL_STMT * stmt);
+	MYSQL_STMT * _stmt_make (MYSQL_BIND * params, MYSQL_BIND * results, const char * stmtname, std::string query);
+	void _stmt_execute (MYSQL_STMT * stmt, const char * stmtname);
+	bool _stmt_fetch (MYSQL_STMT * stmt, const char * stmtname);
 	//
 	std::vector<c_unsigned> _resource_cache;
 	bool _resource_find  (c_unsigned & id, bool & changed, c_request request, c_string share);

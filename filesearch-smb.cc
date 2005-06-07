@@ -99,7 +99,7 @@ int main(int argc, char ** argv, char ** env) {
 		s_log.set_fd(1);
 		s_debug.set_fd(2);
 		c_stream s_task(0); s_task.set_min_timeout(default_timeout_task__sec, default_timeout_task__usec);
-		c_stream s_data(3); s_data.set_min_timeout(1); // should be from options
+		c_stream s_data(3); s_data.set_min_timeout(10); // should be from options!!!
 		// получение параметров вызова программы и занесение их в переменные
 		DEBUG("Getting initial parameters for scanning.");
 		c_stream::t_map task = s_task.read_map(NULL);
@@ -232,7 +232,7 @@ int main(int argc, char ** argv, char ** env) {
 	}
 	catch (e_basic &e)
 	{
-		LOG("Exception in program: "+e.what());
+		LOG("Exception in file '"+e.file()+"' on line "+string_format("%d",e.line())+": "+e.what());
 		exitcode = 1;
 	}
 	catch (std::exception &e)
