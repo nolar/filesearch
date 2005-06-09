@@ -57,7 +57,8 @@ c_database_mysql::c_database_mysql (c_string host, c_string user, c_string pass,
 	, stmt_resource_find(NULL)
 	, stmt_resource_add(NULL)
 	, stmt_resource_loose(NULL)
-	, stmt_resource_loosf(NULL)
+	, stmt_resource_loos1(NULL)
+	, stmt_resource_loos2(NULL)
 	, stmt_resource_touch(NULL)
 	, stmt_file_find(NULL)
 	, stmt_file_add(NULL)
@@ -108,7 +109,8 @@ c_database_mysql::~c_database_mysql ()
 	if (stmt_resource_find ) mysql_stmt_close(stmt_resource_find );
 	if (stmt_resource_add  ) mysql_stmt_close(stmt_resource_add  );
 	if (stmt_resource_loose) mysql_stmt_close(stmt_resource_loose);
-	if (stmt_resource_loosf) mysql_stmt_close(stmt_resource_loosf);
+	if (stmt_resource_loos1) mysql_stmt_close(stmt_resource_loos1);
+	if (stmt_resource_loos2) mysql_stmt_close(stmt_resource_loos2);
 	if (stmt_resource_touch) mysql_stmt_close(stmt_resource_touch);
 	if (stmt_file_find  ) mysql_stmt_close(stmt_file_find  );
 	if (stmt_file_add   ) mysql_stmt_close(stmt_file_add   );
@@ -532,36 +534,55 @@ void c_database_mysql::_resource_loose (c_request request)
 
 void c_database_mysql::_resource_loosf (c_request request)
 {
+	std::vector<c_unsigned> ids;
 	// if statement is not prepared yet, preparing it now
-	if (!stmt_resource_loosf)
+	if (!stmt_resource_loos1)
 	{
-		MYSQL_BIND pbind[2]; memset(pbind, 0, sizeof(pbind));
-		BIND_STRING(pbind[0], resource_loosf, ipaddr  , 1024);
-		BIND_TIME  (pbind[1], resource_loosf, seen    );
-		stmt_resource_loosf = _stmt_make(pbind, NULL, "resource_loosf", std::string() +
+		MYSQL_BIND pbind[1]; memset(pbind, 0, sizeof(pbind));
+		BIND_STRING(pbind[0], resource_loos1, ipaddr, 1024);
+		MYSQL_BIND rbind[1]; memset(rbind, 0, sizeof(rbind));
+		BIND_LONG(rbind[0], resource_loos1, id);
+		stmt_resource_loos1 = _stmt_make(pbind, rbind, "resource_loos1", std::string() +
+			"select f_filesearch_resource from t_filesearch_resource" + 
+			" where f_address = ?" +
+			"   and f_stamp_lost is not null");
+	}
+	// setting parameters
+	binds.resource_loos1.null_ipaddr = false;
+		strncpy(binds.resource_loos1.data_ipaddr, request.ipaddr().ascii(-1).c_str(), 1024);
+		binds.resource_loos1.length_ipaddr = request.ipaddr().ascii(-1).length();
+	// getting data
+	_stmt_execute(stmt_resource_loos1, "resource_loos1");
+	while (_stmt_fetch(stmt_resource_loos1, "resource_loos1"))
+	{
+		if (!binds.resource_loos1.null_id)
+		{
+			ids.push_back(c_unsigned(binds.resource_loos1.data_id));
+		}
+		else throw e_database(__FILE__,__LINE__,"Returned NULL id field.");
+	}
+
+	// if statement is not prepared yet, preparing it now
+	if (!stmt_resource_loos2)
+	{
+		MYSQL_BIND pbind[1]; memset(pbind, 0, sizeof(pbind));
+		BIND_LONG(pbind[0], resource_loos2, resource);
+		stmt_resource_loos2 = _stmt_make(pbind, NULL, "resource_loos2", std::string() +
 			//!!!! this query causes all LOCK TIMEOUT exceptions somewhy
 			"update t_filesearch_file" +
 			"   set f_stamp_lost = now()" +
-			" where f_filesearch_resource in" +
-			"           (select f_filesearch_resource from t_filesearch_resource" + 
-			"             where f_address = ?" +
-			"               and f_stamp_lost is not null)" +
-			"   and f_stamp_seen < ?" +
+			" where f_filesearch_resource = ?" +
 			"   and f_stamp_lost is null");
 	}
+	// cycling throu all found resources' files
+	for (std::vector<c_unsigned>::const_iterator i = ids.begin(); i != ids.end(); i++)
+	{
 	// setting parameters
-	binds.resource_loosf.null_ipaddr = false;
-		strncpy(binds.resource_loosf.data_ipaddr, request.ipaddr().ascii(-1).c_str(), 1024);
-		binds.resource_loosf.length_ipaddr = request.ipaddr().ascii(-1).length();
-	binds.resource_loosf.null_seen = false;
-		binds.resource_loosf.data_seen.year = f_startup.get_year();
-		binds.resource_loosf.data_seen.month = f_startup.get_month();
-		binds.resource_loosf.data_seen.day = f_startup.get_day();
-		binds.resource_loosf.data_seen.hour = f_startup.get_hour();
-		binds.resource_loosf.data_seen.minute = f_startup.get_minute();
-		binds.resource_loosf.data_seen.second = f_startup.get_second();
+	binds.resource_loos2.null_resource = false;
+		binds.resource_loos2.data_resource = i->get();
 	// getting data
-	_stmt_execute(stmt_resource_loosf, "resource_loosf");
+	_stmt_execute(stmt_resource_loos2, "resource_loos2");
+	}
 }
 
 void c_database_mysql::_resource_touch (std::vector<c_unsigned> ids)

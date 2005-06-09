@@ -17,7 +17,8 @@ private:
 	MYSQL_STMT * stmt_resource_find;
 	MYSQL_STMT * stmt_resource_add;
 	MYSQL_STMT * stmt_resource_loose;
-	MYSQL_STMT * stmt_resource_loosf;
+	MYSQL_STMT * stmt_resource_loos1;
+	MYSQL_STMT * stmt_resource_loos2;
 	MYSQL_STMT * stmt_resource_touch;
 	MYSQL_STMT * stmt_file_find;
 	MYSQL_STMT * stmt_file_add;
@@ -86,8 +87,11 @@ private:
 		} resource_loose;
 		struct {
 			my_bool null_ipaddr  ; char *     data_ipaddr  ; unsigned long length_ipaddr  ; std::auto_ptr<char> auto_ipaddr  ;
-			my_bool null_seen    ; MYSQL_TIME data_seen    ;
-		} resource_loosf;
+			my_bool null_id      ; long       data_id      ;
+		} resource_loos1;
+		struct {
+			my_bool null_resource; long       data_resource;
+		} resource_loos2;
 		struct {
 			my_bool null_id      ; long       data_id      ;
 		} resource_touch;
