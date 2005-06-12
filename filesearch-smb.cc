@@ -112,7 +112,7 @@ int main(int argc, char ** argv, char ** env) {
 		selfname  = task[ipc_task_selfname ].as_string();
 		timeout   = task[ipc_task_timeout  ].as_unsigned();
 		depth     = task[ipc_task_depth    ].as_unsigned();
-		if (username.empty()) username = default_request_username_smb;
+		if (username.empty()) username = default_query_username_smb;
 		timeout = timeout * 1000;
 		DEBUG("Successfully got the following parameters for scanning:");
 		DEBUG("address='"  +address.ascii() +"'"   );

@@ -57,14 +57,14 @@ int thread_catch (std::exception * se, e_basic * be)
 	return 1;
 }
 
-bool thread_wrap (std::string command, c_request request,
+bool thread_wrap (std::string command, c_query query,
 	t_wrap_action_resource action_resource,
 	t_wrap_action_dir      action_dir     ,
 	t_wrap_action_file     action_file    ,
 	t_wrap_action_dataflow action_dataflow)
 {
 	pid_t pid; std::string pidstr;
-	std::string urlstr = request.ascii();
+	std::string urlstr = query.ascii();
 
 	// creating fd for stdin & stdout of scan process
 	DEBUG("Creating pipes to scanner process for url '"+urlstr+"'.");
@@ -84,8 +84,8 @@ bool thread_wrap (std::string command, c_request request,
 		fds[fd_ipc_data ] = ofd[1];//????????!!!!!!!!
 //???		fds[fd_ipc_log  ] = fd_null;
 //???		fds[fd_ipc_debug] = fd_null;
-		arg.push_back(request.ipaddr().ascii());
-		arg.push_back(request.share().ascii());
+		arg.push_back(query.ipaddr().ascii());
+		arg.push_back(query.share().ascii());
 		pid = c_forker::exec(command, arg, env, fds);
 		pidstr = std::string(c_unsigned(pid).ascii());
 	}
@@ -107,14 +107,14 @@ bool thread_wrap (std::string command, c_request request,
 	{ 
 		// sending parameters to scanner process
 		c_stream::t_map task;
-		task[ipc_task_ipaddr   ] = new c_ipaddr  (request.ipaddr   ());
-		task[ipc_task_rootpath ] = new c_path    (request.share    ().ascii(), default_path_delimiter);
-		task[ipc_task_username ] = new c_string  (request.username ());
-		task[ipc_task_password ] = new c_string  (request.password ());
-		task[ipc_task_workgroup] = new c_string  (request.workgroup());
-		task[ipc_task_selfname ] = new c_string  (request.selfname ());
-		task[ipc_task_timeout  ] = new c_unsigned(request.timeout  ());
-		task[ipc_task_depth    ] = new c_unsigned(request.depth    ());
+		task[ipc_task_ipaddr   ] = new c_ipaddr  (query.ipaddr   ());
+		task[ipc_task_rootpath ] = new c_path    (query.share    ().ascii(), default_path_delimiter);
+		task[ipc_task_username ] = new c_string  (query.username ());
+		task[ipc_task_password ] = new c_string  (query.password ());
+		task[ipc_task_workgroup] = new c_string  (query.workgroup());
+		task[ipc_task_selfname ] = new c_string  (query.selfname ());
+		task[ipc_task_timeout  ] = new c_unsigned(query.timeout  ());
+		task[ipc_task_depth    ] = new c_unsigned(query.depth    ());
 		DEBUG("Writing task for scanner process "+pidstr+".");
 		s_task.write_map(task);
 	}
@@ -133,21 +133,21 @@ bool thread_wrap (std::string command, c_request request,
 		do
 		{
 			DEBUG("Getting reply from scanner process "+pidstr+".");
-			timer.tv_sec = request.timeout().get(); timer.tv_usec = 0;
+			timer.tv_sec = query.timeout().get(); timer.tv_usec = 0;
 			c_stream::t_map data = s_data.read_map(&timer);
 			c_event event; if (data.find(ipc_data_event) != data.end()) { event = data[ipc_data_event].as_event(); }
 			DEBUG("Got event='"+event.ascii()+"' from scanner process "+pidstr+".");
 			//
 			if (action_dataflow && !datacomplete)
 			{
-				action_dataflow(request);
+				action_dataflow(query);
 				datacomplete = true;
 			}
 			//
 			if (action_resource && event.is_resource())
 			{
 				c_path  path  = data[ipc_data_path].as_path();
-				action_resource(request, path);
+				action_resource(query, path);
 			} else
 			if (action_dir      && event.is_dir())
 			{
@@ -155,7 +155,7 @@ bool thread_wrap (std::string command, c_request request,
 				c_stamp ctime = data[ipc_data_ctime].as_stamp();
 				c_stamp mtime = data[ipc_data_mtime].as_stamp();
 				c_fileinfo fileinfo(path, true, 0, ctime, mtime);
-				action_dir(request, fileinfo);
+				action_dir(query, fileinfo);
 			} else
 			if (action_file     && event.is_file())
 			{
@@ -164,7 +164,7 @@ bool thread_wrap (std::string command, c_request request,
 				c_stamp    ctime = data[ipc_data_ctime].as_stamp();
 				c_stamp    mtime = data[ipc_data_mtime].as_stamp();
 				c_fileinfo fileinfo(path, false, size, ctime, mtime);
-				action_file(request, fileinfo);
+				action_file(query, fileinfo);
 			} else
 			{/* unkown event or known event with no handler - this is not error - just ignore*/}
 		} while (true);

@@ -1,5 +1,5 @@
-#ifndef _FILESEARCH_REQUEST_
-#define _FILESEARCH_REQUEST_
+#ifndef _FILESEARCH_QUERY_
+#define _FILESEARCH_QUERY_
 
 #include <string>
 #include <vector>
@@ -12,7 +12,7 @@
 #include "c_protocol.h"
 #include "c_ipaddr.h"
 
-class c_request {
+class c_query {
 private:
 	c_unsigned f_id;
 	c_protocol f_protocol;
@@ -29,9 +29,9 @@ private:
 	c_unsigned f_resource;
 protected:
 public:
-	c_request ();
-	c_request (const c_request & right);
-	c_request (c_unsigned a_id, c_protocol a_protocol, c_flag a_isnetwork, c_ipaddr a_ipaddr, c_unsigned a_ipport, c_string a_share, c_string a_username, c_string a_password, c_string a_workgroup, c_string a_selfname, c_unsigned a_timeout, c_unsigned a_depth);
+	c_query ();
+	c_query (const c_query & right);
+	c_query (c_unsigned a_id, c_protocol a_protocol, c_flag a_isnetwork, c_ipaddr a_ipaddr, c_unsigned a_ipport, c_string a_share, c_string a_username, c_string a_password, c_string a_workgroup, c_string a_selfname, c_unsigned a_timeout, c_unsigned a_depth);
 
 	std::string ascii() const;
 
@@ -50,6 +50,6 @@ public:
 	c_unsigned resource  (); void resource  (c_unsigned value);
 };
 
-typedef std::vector<c_request> c_requests;
+typedef std::vector<c_query> c_queries;
 
 #endif

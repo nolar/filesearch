@@ -5,10 +5,10 @@
 #include <vector>
 #include "config.h"
 #include "globals.h"
-#include "request.h"
+#include "query.h"
 
 extern std::string thread_smb__command;
-extern c_request   thread_smb__request;
+extern c_query   thread_smb__query;
 extern int         thread_smb ();
 
 #endif

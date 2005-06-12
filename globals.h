@@ -56,8 +56,8 @@ extern unsigned default_database_cachesize_resource;
 extern unsigned default_database_cachesize_file;
 extern char *   default_path_delimiter;
 extern char *   default_scanner_smb;
-extern char *   default_request_username_smb;
-extern unsigned default_request_depth;
+extern char *   default_query_username_smb;
+extern unsigned default_query_depth;
 
 extern long   logging_timeout__sec;
 extern long   logging_timeout__usec;

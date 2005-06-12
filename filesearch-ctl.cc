@@ -27,7 +27,7 @@
 #include "forker.h"
 #include "thread.h"
 #include "thread_smb.h"
-#include "request.h"
+#include "query.h"
 
 #include "c_signed.h"
 #include "c_unsigned.h"
@@ -39,30 +39,30 @@
 c_database * database = NULL;
 c_forker * forker = NULL;
 
-inline void scan_address (c_request request)
+inline void scan_address (c_query query)
 {
-	DEBUG("Checking status of url '"+request.ascii()+"'.");
+	DEBUG("Checking status of url '"+query.ascii()+"'.");
 	// проверяем, не была ли такая шара с такого адреса уже найдена
-	bool already = database->status_check(request);
+	bool already = database->status_check(query);
 	// если таковой еще нет, то сканируем эту шару на этом компьютере
 	if (!already)
 	{
 		// сканируем компьютер или конкретную шару
-		DEBUG("Creating scanner for url '"+request.ascii()+"'.");
-		if (request.protocol().is_smb())
+		DEBUG("Creating scanner for url '"+query.ascii()+"'.");
+		if (query.protocol().is_smb())
 		{
-			thread_smb__request = request;
+			thread_smb__query = query;
 			forker->fork(thread_smb, thread_init, thread_free, thread_catch);
 		} else
-		if (request.protocol().is_ftp())
+		if (query.protocol().is_ftp())
 		{
 		} else
-		if (request.protocol().is_http())
+		if (query.protocol().is_http())
 		{
 		} else
 		{}
 	} else {
-		DEBUG("Skipping scanning of url '"+request.ascii()+"'.");
+		DEBUG("Skipping scanning of url '"+query.ascii()+"'.");
 	}
 }
 
@@ -88,19 +88,19 @@ int main (int argc, char ** argv, char ** env) {
 		//!!!
 		// creating fork manager
 		forker = new c_forker(default_children_count); //!!! max_children should be configurable option
-		// retrieving list of address requests
-		DEBUG("Fetching requests from database.");
-		c_requests requests = database->fetch_requests();
-//!!!		DEBUG("Fetched "+convert::ul2str(requests.size())+" requests.");
-		for (c_requests::iterator request = requests.begin(); request != requests.end(); request++)
+		// retrieving list of address queries
+		DEBUG("Fetching queries from database.");
+		c_queries queries = database->fetch_queries();
+//!!!		DEBUG("Fetched "+convert::ul2str(queries.size())+" queries.");
+		for (c_queries::iterator query = queries.begin(); query != queries.end(); query++)
 		{
-			LOG("REQUEST for "+(*request).ipaddr().ascii());
+			LOG("query for "+(*query).ipaddr().ascii());
 			// пробежка по всем адресам проверяемого блока
-			c_ipaddr address_from = (*request).ipaddr().range_first(); 
-			c_ipaddr address_till = (*request).ipaddr().range_last (); 
-			if ((*request).isnetwork()) { address_from++; address_till--; }
+			c_ipaddr address_from = (*query).ipaddr().range_first(); 
+			c_ipaddr address_till = (*query).ipaddr().range_last (); 
+			if ((*query).isnetwork()) { address_from++; address_till--; }
 			for (c_ipaddr address = address_from; address <= address_till; address++)
-				{c_request concrete = *request; concrete.ipaddr(address.concrete()); scan_address(concrete);}
+				{c_query concrete = *query; concrete.ipaddr(address.concrete()); scan_address(concrete);}
 		}
 		// freeing engine's resources
 	}

@@ -1,0 +1,20 @@
+--- D:\Dropbox\Sources\filesearch\filesearch\.backup.20050613.runnable-and-clean\database_mysql.cc	2006-03-22 02:29:26.000000000 +0300
++++ D:\Dropbox\Sources\filesearch\filesearch\src\database_mysql.cc	2006-03-21 11:08:00.000000000 +0300
+@@ -904,7 +904,7 @@
+ 		{
+ 			if(!_resource_find(resourceid, changed, query, share)) // если не создался, предполагаем что он успел создаться параллельно, и пытаемся найти снова
+ 			{
+-				throw e_database(__FILE__,__LINE__,"Can not find or create resource record."); // финиш. не существует и не создается.
++				throw e_database(__FILE__,__LINE__,std::string()+"Can not find or create resource record for url '"+query.ascii()+"' resource '"+share.ascii()+"'."); // финиш. не существует и не создается.
+ 			} _resource_cache.push_back(resourceid);
+ 		} else _resource_index(resourceid, share);
+ 	} _resource_cache.push_back(resourceid);
+@@ -932,7 +932,7 @@
+ 		{
+ 			if(!_file_find(fileid, changed, query, fileinfo)) // если не создался, предполагаем что он успел создаться параллельно, и пытаемся найти снова
+ 			{
+-				throw e_database(__FILE__,__LINE__,"Can not find or create file record."); // финиш. не существует и не создается.
++				throw e_database(__FILE__,__LINE__,std::string()+"Can not find or create file record for url '"+query.ascii()+"' file '"+fileinfo.path().ascii(true,true)+"'."); // финиш. не существует и не создается.
+ 			} else _file_cache.push_back(fileid);
+ 		} else _file_index(fileid, fileinfo);
+ 	} else _file_cache.push_back(fileid);

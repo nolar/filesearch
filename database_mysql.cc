@@ -49,19 +49,21 @@ pid_t c_database_mysql::_initialized_pid = 0;
 
 c_database_mysql::c_database_mysql (c_string host, c_string user, c_string pass, c_string db, c_unsigned port, c_string socket, c_unsigned flags)
 	: c_database ()
-	, stmt_requests    (NULL)
+	, stmt_queries    (NULL)
 	, stmt_startup     (NULL)
 	, stmt_status_check(NULL)
 	, stmt_status_renew(NULL)
 	, stmt_status_clean(NULL)
 	, stmt_resource_find(NULL)
 	, stmt_resource_add(NULL)
+	, stmt_resource_index(NULL)
 	, stmt_resource_loose(NULL)
 	, stmt_resource_loos1(NULL)
 	, stmt_resource_loos2(NULL)
 	, stmt_resource_touch(NULL)
 	, stmt_file_find(NULL)
 	, stmt_file_add(NULL)
+	, stmt_file_index(NULL)
 	, stmt_file_loose(NULL)
 	, stmt_file_touch(NULL)
 	, stmt_file_change(NULL)
@@ -101,19 +103,21 @@ c_database_mysql::c_database_mysql (c_string host, c_string user, c_string pass,
 
 c_database_mysql::~c_database_mysql ()
 {
-	if (stmt_requests    ) mysql_stmt_close(stmt_requests    );
+	if (stmt_queries    ) mysql_stmt_close(stmt_queries    );
 	if (stmt_startup     ) mysql_stmt_close(stmt_startup     );
 	if (stmt_status_check) mysql_stmt_close(stmt_status_check);
 	if (stmt_status_renew) mysql_stmt_close(stmt_status_renew);
 	if (stmt_status_clean) mysql_stmt_close(stmt_status_clean);
 	if (stmt_resource_find ) mysql_stmt_close(stmt_resource_find );
 	if (stmt_resource_add  ) mysql_stmt_close(stmt_resource_add  );
+	if (stmt_resource_index) mysql_stmt_close(stmt_resource_index);
 	if (stmt_resource_loose) mysql_stmt_close(stmt_resource_loose);
 	if (stmt_resource_loos1) mysql_stmt_close(stmt_resource_loos1);
 	if (stmt_resource_loos2) mysql_stmt_close(stmt_resource_loos2);
 	if (stmt_resource_touch) mysql_stmt_close(stmt_resource_touch);
 	if (stmt_file_find  ) mysql_stmt_close(stmt_file_find  );
 	if (stmt_file_add   ) mysql_stmt_close(stmt_file_add   );
+	if (stmt_file_index ) mysql_stmt_close(stmt_file_index );
 	if (stmt_file_loose ) mysql_stmt_close(stmt_file_loose );
 	if (stmt_file_touch ) mysql_stmt_close(stmt_file_touch );
 	if (stmt_file_change) mysql_stmt_close(stmt_file_change);
@@ -137,14 +141,14 @@ MYSQL_STMT * c_database_mysql::_stmt_make (MYSQL_BIND * params, MYSQL_BIND * res
 	MYSQL_STMT * stmt = mysql_stmt_init(&handle);
 	if (!stmt)
 	{
-		throw e_database(__FILE__,__LINE__,std::string()+"Can not initialize statement '"+stmtname+"'.", mysql_error(&handle));
+		throw e_database(__FILE__,__LINE__,std::string()+"Can not allocate memory for statement '"+stmtname+"'.", mysql_error(&handle));
 	}
 	// parsing query for statement
 	if (mysql_stmt_prepare(stmt, query.c_str(), query.length()))
 	{
 		std::string msg = mysql_stmt_error(stmt);
 		mysql_stmt_close(stmt);
-		throw e_database(__FILE__,__LINE__,std::string()+"Can not prepare statement '"+stmtname+"'.", msg);
+		throw e_database(__FILE__,__LINE__,std::string()+"Can not prepare statement '"+stmtname+"' ("+query+").", msg);
 	}
 	// binding fields with statement
 	if (params)
@@ -152,7 +156,7 @@ MYSQL_STMT * c_database_mysql::_stmt_make (MYSQL_BIND * params, MYSQL_BIND * res
 		{
 			std::string msg = mysql_stmt_error(stmt);
 			mysql_stmt_close(stmt);
-			throw e_database(__FILE__,__LINE__,std::string()+"Can not bind parameters to statement '"+stmtname+"'.", msg);
+			throw e_database(__FILE__,__LINE__,std::string()+"Can not bind parameters to statement '"+stmtname+"' ("+query+").", msg);
 		}
 	// binding fields with statement
 	if (results)
@@ -160,7 +164,7 @@ MYSQL_STMT * c_database_mysql::_stmt_make (MYSQL_BIND * params, MYSQL_BIND * res
 		{
 			std::string msg = mysql_stmt_error(stmt);
 			mysql_stmt_close(stmt);
-			throw e_database(__FILE__,__LINE__,"Can not bind results to statement.", msg);
+			throw e_database(__FILE__,__LINE__,std::string()+"Can not bind results to statement '"+stmtname+"' ("+query+").", msg);
 		}
 	// return gotten statement
 	return stmt;
@@ -189,7 +193,7 @@ bool c_database_mysql::_stmt_fetch (MYSQL_STMT * stmt, const char * stmtname)
 	{
 		std::string msg = mysql_stmt_error(stmt);
 		mysql_stmt_free_result(stmt);
-		throw e_database(__FILE__,__LINE__,"Error while fetching from statement.", msg);
+		throw e_database(__FILE__,__LINE__,std::string()+"Error while fetching from statement '"+stmtname+"'.", msg);
 	}
 	else return true;
 }
@@ -200,49 +204,49 @@ bool c_database_mysql::_stmt_fetch (MYSQL_STMT * stmt, const char * stmtname)
 /***************************************************************************************************
                                      DATA FETCHING ROUTINES
  ***************************************************************************************************/
-c_requests c_database_mysql::fetch_requests ()
+c_queries c_database_mysql::fetch_queries ()
 {
-	c_requests result;
+	c_queries result;
 	// if statement is not prepared yet, preparing it now
-	if (!stmt_requests)
+	if (!stmt_queries)
 	{
 		MYSQL_BIND rbind[13]; memset(rbind, 0, sizeof(rbind));
-		BIND_LONG  (rbind[ 0], requests, id       );
-		BIND_LONG  (rbind[ 1], requests, protocol );
-		BIND_LONG  (rbind[ 2], requests, isnetwork);
-		BIND_STRING(rbind[ 3], requests, ipaddr   , 1024);
-		BIND_LONG  (rbind[ 4], requests, netmask  );
-		BIND_LONG  (rbind[ 5], requests, ipport   );
-		BIND_STRING(rbind[ 6], requests, share    , 1024);
-		BIND_STRING(rbind[ 7], requests, username , 1024);
-		BIND_STRING(rbind[ 8], requests, password , 1024);
-		BIND_STRING(rbind[ 9], requests, workgroup, 1024);
-		BIND_STRING(rbind[10], requests, selfname , 1024);
-		BIND_LONG  (rbind[11], requests, timeout  );
-		BIND_LONG  (rbind[12], requests, depth    );
-		stmt_requests = _stmt_make(NULL, rbind, "requests", std::string() +
-			"select f_filesearch_request, f_protocol, f_isnetwork, f_address, f_netmask, f_port, f_share, f_username, f_password, f_workgroup, f_selfname, f_timeout, f_depth" +
-			"  from t_filesearch_request " +
+		BIND_LONG  (rbind[ 0], queries, id       );
+		BIND_LONG  (rbind[ 1], queries, protocol );
+		BIND_LONG  (rbind[ 2], queries, isnetwork);
+		BIND_STRING(rbind[ 3], queries, ipaddr   , 1024);
+		BIND_LONG  (rbind[ 4], queries, ipmask   );
+		BIND_LONG  (rbind[ 5], queries, ipport   );
+		BIND_STRING(rbind[ 6], queries, share    , 1024);
+		BIND_STRING(rbind[ 7], queries, username , 1024);
+		BIND_STRING(rbind[ 8], queries, password , 1024);
+		BIND_STRING(rbind[ 9], queries, workgroup, 1024);
+		BIND_STRING(rbind[10], queries, selfname , 1024);
+		BIND_LONG  (rbind[11], queries, timeout  );
+		BIND_LONG  (rbind[12], queries, depth    );
+		stmt_queries = _stmt_make(NULL, rbind, "queries", std::string() +
+			"select f_query, f_protocol, f_isnetwork, f_ipaddr, f_ipmask, f_ipport, f_share, f_username, f_password, f_workgroup, f_selfname, f_timeout, f_depth" +
+			"  from t_query " +
 			" where f_active = 1 " +
-			" order by f_share desc, f_netmask desc");
+			" order by f_share desc, f_ipmask desc");
 	}
 	// getting data
-	_stmt_execute(stmt_requests, "requests");
-	while (_stmt_fetch(stmt_requests, "requests"))
+	_stmt_execute(stmt_queries, "queries");
+	while (_stmt_fetch(stmt_queries, "queries"))
 	{
-		c_unsigned o_id        ; if (!binds.requests.null_id       ) o_id        = binds.requests.data_id        ; else throw e_database(__FILE__,__LINE__,"Identifier field of request is NULL.");
-		c_protocol o_protocol  ; if (!binds.requests.null_protocol ) o_protocol  = binds.requests.data_protocol  ; else throw e_database(__FILE__,__LINE__,"Field 'protocol' is NULL." );
-		c_flag     o_isnetwork ; if (!binds.requests.null_isnetwork) o_isnetwork = binds.requests.data_isnetwork ; else throw e_database(__FILE__,__LINE__,"Field 'isnetwork' is NULL.");
-		c_ipaddr   o_ipaddr    ; if (!binds.requests.null_ipaddr   ) o_ipaddr    = binds.requests.null_netmask ? c_ipaddr(std::string(binds.requests.data_ipaddr, binds.requests.length_ipaddr)) : c_ipaddr(std::string(binds.requests.data_ipaddr, binds.requests.length_ipaddr), binds.requests.data_netmask); else throw e_database(__FILE__,__LINE__,"Field 'ipaddr' is NULL.");
-		c_unsigned o_ipport    ; if (!binds.requests.null_ipport   ) o_ipport    = binds.requests.data_ipport    ;
-		c_string   o_share     ; if (!binds.requests.null_share    ) o_share     = std::string(binds.requests.data_share     , binds.requests.length_share    );
-		c_string   o_username  ; if (!binds.requests.null_username ) o_username  = std::string(binds.requests.data_username  , binds.requests.length_username );
-		c_string   o_password  ; if (!binds.requests.null_password ) o_password  = std::string(binds.requests.data_password  , binds.requests.length_password );
-		c_string   o_workgroup ; if (!binds.requests.null_workgroup) o_workgroup = std::string(binds.requests.data_workgroup , binds.requests.length_workgroup);
-		c_string   o_selfname  ; if (!binds.requests.null_selfname ) o_selfname  = std::string(binds.requests.data_selfname  , binds.requests.length_selfname );
-		c_unsigned o_timeout   ; if (!binds.requests.null_timeout  ) o_timeout   = binds.requests.data_timeout   ;
-		c_unsigned o_depth     ; if (!binds.requests.null_depth    ) o_depth     = binds.requests.data_depth     ; else o_depth = default_request_depth;
-		result.push_back(c_request(o_id, o_protocol, o_isnetwork, o_ipaddr, o_ipport, o_share, o_username, o_password, o_workgroup, o_selfname, o_timeout, o_depth));
+		c_unsigned o_id        ; if (!binds.queries.null_id       ) o_id        = binds.queries.data_id        ; else throw e_database(__FILE__,__LINE__,"Identifier field of query is NULL.");
+		c_protocol o_protocol  ; if (!binds.queries.null_protocol ) o_protocol  = binds.queries.data_protocol  ; else throw e_database(__FILE__,__LINE__,"Field 'protocol' is NULL." );
+		c_flag     o_isnetwork ; if (!binds.queries.null_isnetwork) o_isnetwork = binds.queries.data_isnetwork ; else throw e_database(__FILE__,__LINE__,"Field 'isnetwork' is NULL.");
+		c_ipaddr   o_ipaddr    ; if (!binds.queries.null_ipaddr   ) o_ipaddr    = binds.queries.null_ipmask ? c_ipaddr(std::string(binds.queries.data_ipaddr, binds.queries.length_ipaddr)) : c_ipaddr(std::string(binds.queries.data_ipaddr, binds.queries.length_ipaddr), binds.queries.data_ipmask); else throw e_database(__FILE__,__LINE__,"Field 'ipaddr' is NULL.");
+		c_unsigned o_ipport    ; if (!binds.queries.null_ipport   ) o_ipport    = binds.queries.data_ipport    ;
+		c_string   o_share     ; if (!binds.queries.null_share    ) o_share     = std::string(binds.queries.data_share     , binds.queries.length_share    );
+		c_string   o_username  ; if (!binds.queries.null_username ) o_username  = std::string(binds.queries.data_username  , binds.queries.length_username );
+		c_string   o_password  ; if (!binds.queries.null_password ) o_password  = std::string(binds.queries.data_password  , binds.queries.length_password );
+		c_string   o_workgroup ; if (!binds.queries.null_workgroup) o_workgroup = std::string(binds.queries.data_workgroup , binds.queries.length_workgroup);
+		c_string   o_selfname  ; if (!binds.queries.null_selfname ) o_selfname  = std::string(binds.queries.data_selfname  , binds.queries.length_selfname );
+		c_unsigned o_timeout   ; if (!binds.queries.null_timeout  ) o_timeout   = binds.queries.data_timeout   ;
+		c_unsigned o_depth     ; if (!binds.queries.null_depth    ) o_depth     = binds.queries.data_depth     ; else o_depth = default_query_depth;
+		result.push_back(c_query(o_id, o_protocol, o_isnetwork, o_ipaddr, o_ipport, o_share, o_username, o_password, o_workgroup, o_selfname, o_timeout, o_depth));
 	}
 	return result;
 }
@@ -279,7 +283,7 @@ c_stamp c_database_mysql::fetch_startup ()
 /***************************************************************************************************
                                 STATUS OF SCAN PROCESS ROUTINES
  ***************************************************************************************************/
-bool c_database_mysql::status_check (c_request request)
+bool c_database_mysql::status_check (c_query query)
 {
 	bool result = false;
 	// if statement is not prepared yet, preparing it now
@@ -296,12 +300,12 @@ bool c_database_mysql::status_check (c_request request)
 		MYSQL_BIND rbind[1]; memset(rbind, 0, sizeof(rbind));
 		BIND_LONG(rbind[0], status_check, count);
 		stmt_status_check = _stmt_make(pbind, rbind, "status_check", std::string() +
-			"select count(*) from t_filesearch_status" +
+			"select count(*) from t_status" +
 			" where f_startup  = ?" + 
 			"   and f_process  = ?" + 
 			"   and f_protocol = ?" + 
-			"   and f_address  = ?" + 
-			"   and f_port     = ?" + 
+			"   and f_ipaddr   = ?" + 
+			"   and f_ipport   = ?" + 
 			"   and f_share    = ?" + 
 			"   and f_username = ?");
 	}
@@ -315,19 +319,19 @@ bool c_database_mysql::status_check (c_request request)
 		binds.status_check.data_startup.second = f_startup.get_second();
 	binds.status_check.null_process = false;
 		binds.status_check.data_process = f_process.get();
-	binds.status_check.null_ipaddr = false;
-		strncpy(binds.status_check.data_ipaddr, request.ipaddr().ascii(-1).c_str(), 1024);
-		binds.status_check.length_ipaddr = request.ipaddr().ascii(-1).length();
 	binds.status_check.null_protocol = false;
-		binds.status_check.data_protocol = request.protocol().get();
+		binds.status_check.data_protocol = query.protocol().get();
+	binds.status_check.null_ipaddr = false;
+		strncpy(binds.status_check.data_ipaddr, query.ipaddr().ascii(-1).c_str(), 1024);
+		binds.status_check.length_ipaddr = query.ipaddr().ascii(-1).length();
 	binds.status_check.null_ipport = false;
-		binds.status_check.data_ipport = request.ipport().get();
+		binds.status_check.data_ipport = query.ipport().get();
 	binds.status_check.null_share = false;
-		strncpy(binds.status_check.data_share, request.share().c_str(), 1024);
-		binds.status_check.length_share = request.share().length();
+		strncpy(binds.status_check.data_share, query.share().c_str(), 1024);
+		binds.status_check.length_share = query.share().length();
 	binds.status_check.null_username = false;
-		strncpy(binds.status_check.data_username, request.username().c_str(), 1024);
-		binds.status_check.length_username = request.username().length();
+		strncpy(binds.status_check.data_username, query.username().c_str(), 1024);
+		binds.status_check.length_username = query.username().length();
 	// getting data
 	_stmt_execute(stmt_status_check, "status_check");
 	while (_stmt_fetch(stmt_status_check, "status_check"))
@@ -342,7 +346,7 @@ bool c_database_mysql::status_check (c_request request)
 	return result;
 }
 
-void c_database_mysql::status_renew (c_request request)
+void c_database_mysql::status_renew (c_query query)
 {
 	// if statement is not prepared yet, preparing it now
 	if (!stmt_status_renew)
@@ -356,8 +360,8 @@ void c_database_mysql::status_renew (c_request request)
 		BIND_STRING(pbind[5], status_renew, share   , 1024);
 		BIND_STRING(pbind[6], status_renew, username, 1024);
 		stmt_status_renew = _stmt_make(pbind, NULL, "status_renew", std::string() +
-			"insert into t_filesearch_status (f_startup,f_process,f_protocol,f_address,f_port,f_share,f_username)" +
-			"                         values (?,?,?,?,?,?,?)");
+			"insert into t_status (f_startup,f_process,f_protocol,f_ipaddr,f_ipport,f_share,f_username)" +
+			" values (?,?,?,?,?,?,?)");
 	}
 	// setting parameters
 	binds.status_renew.null_startup = false;
@@ -369,19 +373,19 @@ void c_database_mysql::status_renew (c_request request)
 		binds.status_renew.data_startup.second = f_startup.get_second();
 	binds.status_renew.null_process = false;
 		binds.status_renew.data_process = f_process.get();
-	binds.status_renew.null_ipaddr = false;
-		strncpy(binds.status_renew.data_ipaddr, request.ipaddr().ascii(-1).c_str(), 1024);
-		binds.status_renew.length_ipaddr = request.ipaddr().ascii(-1).length();
 	binds.status_renew.null_protocol = false;
-		binds.status_renew.data_protocol = request.protocol().get();
+		binds.status_renew.data_protocol = query.protocol().get();
+	binds.status_renew.null_ipaddr = false;
+		strncpy(binds.status_renew.data_ipaddr, query.ipaddr().ascii(-1).c_str(), 1024);
+		binds.status_renew.length_ipaddr = query.ipaddr().ascii(-1).length();
 	binds.status_renew.null_ipport = false;
-		binds.status_renew.data_ipport = request.ipport().get();
+		binds.status_renew.data_ipport = query.ipport().get();
 	binds.status_renew.null_share = false;
-		strncpy(binds.status_renew.data_share, request.share().c_str(), 1024);
-		binds.status_renew.length_share = request.share().length();
+		strncpy(binds.status_renew.data_share, query.share().c_str(), 1024);
+		binds.status_renew.length_share = query.share().length();
 	binds.status_renew.null_username = false;
-		strncpy(binds.status_renew.data_username, request.username().c_str(), 1024);
-		binds.status_renew.length_username = request.username().length();
+		strncpy(binds.status_renew.data_username, query.username().c_str(), 1024);
+		binds.status_renew.length_username = query.username().length();
 	// getting data
 	_stmt_execute(stmt_status_renew, "status_renew");
 }
@@ -395,7 +399,7 @@ void c_database_mysql::status_clean ()
 		BIND_TIME(pbind[0], status_clean, startup );
 		BIND_LONG(pbind[1], status_clean, process );
 		stmt_status_clean = _stmt_make(pbind, NULL, "status_clean", std::string() +
-			"delete from t_filesearch_status" +
+			"delete from t_status" +
 			" where f_startup = ? and f_process = ?");
 	}
 	// setting parameters
@@ -416,7 +420,7 @@ void c_database_mysql::status_clean ()
 /***************************************************************************************************
                            SUPPLIMENTARY ROUTES FOR FILE REPORTING/FLUSHING
  ***************************************************************************************************/
-bool c_database_mysql::_resource_find (c_unsigned & id, bool & changed, c_request request, c_string share)
+bool c_database_mysql::_resource_find (c_unsigned & id, bool & changed, c_query query, c_string share)
 {
 	bool result = false;
 	// if statement is not prepared yet, preparing it now
@@ -432,28 +436,27 @@ bool c_database_mysql::_resource_find (c_unsigned & id, bool & changed, c_reques
 		BIND_LONG(rbind[0], resource_find, id);
 		BIND_TIME(rbind[1], resource_find, lost);
 		stmt_resource_find = _stmt_make(pbind, rbind, "resource_find", std::string() +
-			"select f_filesearch_resource,t_filesearch_resource.f_stamp_lost from t_filesearch_resource, t_filesearch_request" +
-			" where t_filesearch_request.f_filesearch_request = t_filesearch_resource.f_filesearch_request" +
-			" and   t_filesearch_request .f_protocol = ?"
-			" and   t_filesearch_resource.f_address  = ?"
-			" and   t_filesearch_request .f_port     = ?"
-			" and   t_filesearch_resource.f_share    = ?"
-			" and   t_filesearch_request .f_username = ?");
+			"select R.f_resource,R.f_lost from t_query Q join t_resource R using (f_query)" +
+			" where Q.f_protocol = ?"
+			" and   R.f_ipaddr   = ?"
+			" and   Q.f_ipport   = ?"
+			" and   R.f_share    = ?"
+			" and   Q.f_username = ?");
 	}
 	// setting parameters
 	binds.resource_find.null_protocol = false;
-		binds.resource_find.data_protocol = request.protocol().get();
+		binds.resource_find.data_protocol = query.protocol().get();
 	binds.resource_find.null_ipaddr = false;
-		strncpy(binds.resource_find.data_ipaddr, request.ipaddr().ascii(-1).c_str(), 1024);
-		binds.resource_find.length_ipaddr = request.ipaddr().ascii(-1).length();
+		strncpy(binds.resource_find.data_ipaddr, query.ipaddr().ascii(-1).c_str(), 1024);
+		binds.resource_find.length_ipaddr = query.ipaddr().ascii(-1).length();
 	binds.resource_find.null_ipport = false;
-		binds.resource_find.data_ipport = request.ipport().get();
+		binds.resource_find.data_ipport = query.ipport().get();
 	binds.resource_find.null_share = false;
 		strncpy(binds.resource_find.data_share, share.c_str(), 1024);
 		binds.resource_find.length_share = share.length();
 	binds.resource_find.null_username = false;
-		strncpy(binds.resource_find.data_username, request.username().c_str(), 1024);
-		binds.resource_find.length_username = request.username().length();
+		strncpy(binds.resource_find.data_username, query.username().c_str(), 1024);
+		binds.resource_find.length_username = query.username().length();
 	// getting data
 	_stmt_execute(stmt_resource_find, "resource_find");
 	while (_stmt_fetch(stmt_resource_find, "resource_find"))
@@ -469,26 +472,26 @@ bool c_database_mysql::_resource_find (c_unsigned & id, bool & changed, c_reques
 	return result;
 }
 
-bool c_database_mysql::_resource_add (c_unsigned & id, c_request request, c_string share)
+bool c_database_mysql::_resource_add (c_unsigned & id, c_query query, c_string share)
 {
 	bool result = true;
 	// if statement is not prepared yet, preparing it now
 	if (!stmt_resource_add)
 	{
 		MYSQL_BIND pbind[3]; memset(pbind, 0, sizeof(pbind));
-		BIND_LONG  (pbind[0], resource_add, request );
+		BIND_LONG  (pbind[0], resource_add, query );
 		BIND_STRING(pbind[1], resource_add, ipaddr  , 1024);
 		BIND_STRING(pbind[2], resource_add, share   , 1024);
 		stmt_resource_add = _stmt_make(pbind, NULL, "resource_add", std::string() +
-			"insert into t_filesearch_resource (f_filesearch_request, f_address, f_share, f_stamp_found, f_stamp_seen, f_stamp_lost)" +
+			"insert into t_resource (f_query, f_ipaddr, f_share, f_found, f_seen, f_lost)" +
 			" values (?,?,?,now(),now(),NULL)");
 	}
 	// setting parameters
-	binds.resource_add.null_request = false;
-		binds.resource_add.data_request = request.id().get();
+	binds.resource_add.null_query = false;
+		binds.resource_add.data_query = query.id().get();
 	binds.resource_add.null_ipaddr = false;
-		strncpy(binds.resource_add.data_ipaddr, request.ipaddr().ascii(-1).c_str(), 1024);
-		binds.resource_add.length_ipaddr = request.ipaddr().ascii(-1).length();
+		strncpy(binds.resource_add.data_ipaddr, query.ipaddr().ascii(-1).c_str(), 1024);
+		binds.resource_add.length_ipaddr = query.ipaddr().ascii(-1).length();
 	binds.resource_add.null_share = false;
 		strncpy(binds.resource_add.data_share, share.c_str(), 1024);
 		binds.resource_add.length_share = share.length();
@@ -502,25 +505,51 @@ bool c_database_mysql::_resource_add (c_unsigned & id, c_request request, c_stri
 	return result;
 }
 
-void c_database_mysql::_resource_loose (c_request request)
+void c_database_mysql::_resource_index (c_unsigned id, c_string share)
+{
+	// if statement is not prepared yet, preparing it now
+	if (!stmt_resource_index)
+	{
+		MYSQL_BIND pbind[2]; memset(pbind, 0, sizeof(pbind));
+		BIND_LONG    (pbind[0], resource_index, id  );
+		BIND_STRING  (pbind[1], resource_index, key, 4096);
+		stmt_resource_index = _stmt_make(pbind, NULL, "resource_index", std::string() +
+			"insert into t_resource_index (f_resource, f_key)" +
+			" values (?,?)");
+	}
+	//
+	c_string::t_value key = share.ascii();
+	while (!key.empty())
+	{
+	// setting parameters
+	binds.resource_index.null_id = false;
+		binds.resource_index.data_id = id.get();
+	binds.resource_index.null_key = false;
+		strncpy(binds.resource_index.data_key, key.c_str(), 1024);
+		binds.resource_index.length_key = key.length();
+	// executing statement
+	_stmt_execute(stmt_resource_index, "resource_index");
+	// cutting key
+	key.erase(0,1);
+	}
+}
+
+void c_database_mysql::_resource_loose (c_query query)
 {
 	// if statement is not prepared yet, preparing it now
 	if (!stmt_resource_loose)
 	{
 		MYSQL_BIND pbind[2]; memset(pbind, 0, sizeof(pbind));
-		BIND_STRING(pbind[0], resource_loose, ipaddr  , 1024);
-		BIND_TIME  (pbind[1], resource_loose, seen    );
+		BIND_TIME  (pbind[0], resource_loose, seen    );
+		BIND_STRING(pbind[1], resource_loose, ipaddr  , 1024);
 		stmt_resource_loose = _stmt_make(pbind, NULL, "resource_loose", std::string() +
-			"update t_filesearch_resource" +
-			"   set f_stamp_lost = now()" +
-			" where f_address = ?" +
-			"   and f_stamp_seen < ?" +
-			"   and f_stamp_lost is null");
+			"update t_resource" +
+			"   set f_lost = now()" +
+			" where f_lost is null" +
+			"   and f_seen < ?" +
+			"   and f_ipaddr = ?");
 	}
 	// setting parameters
-	binds.resource_loose.null_ipaddr = false;
-		strncpy(binds.resource_loose.data_ipaddr, request.ipaddr().ascii(-1).c_str(), 1024);
-		binds.resource_loose.length_ipaddr = request.ipaddr().ascii(-1).length();
 	binds.resource_loose.null_seen = false;
 		binds.resource_loose.data_seen.year = f_startup.get_year();
 		binds.resource_loose.data_seen.month = f_startup.get_month();
@@ -528,11 +557,14 @@ void c_database_mysql::_resource_loose (c_request request)
 		binds.resource_loose.data_seen.hour = f_startup.get_hour();
 		binds.resource_loose.data_seen.minute = f_startup.get_minute();
 		binds.resource_loose.data_seen.second = f_startup.get_second();
+	binds.resource_loose.null_ipaddr = false;
+		strncpy(binds.resource_loose.data_ipaddr, query.ipaddr().ascii(-1).c_str(), 1024);
+		binds.resource_loose.length_ipaddr = query.ipaddr().ascii(-1).length();
 	// getting data
 	_stmt_execute(stmt_resource_loose, "resource_loose");
 }
 
-void c_database_mysql::_resource_loosf (c_request request)
+void c_database_mysql::_resource_loosf (c_query query)
 {
 	std::vector<c_unsigned> ids;
 	// if statement is not prepared yet, preparing it now
@@ -543,14 +575,14 @@ void c_database_mysql::_resource_loosf (c_request request)
 		MYSQL_BIND rbind[1]; memset(rbind, 0, sizeof(rbind));
 		BIND_LONG(rbind[0], resource_loos1, id);
 		stmt_resource_loos1 = _stmt_make(pbind, rbind, "resource_loos1", std::string() +
-			"select f_filesearch_resource from t_filesearch_resource" + 
-			" where f_address = ?" +
-			"   and f_stamp_lost is not null");
+			"select f_resource from t_resource" + 
+			" where f_lost is not null" +
+			"   and f_ipaddr = ?");
 	}
 	// setting parameters
 	binds.resource_loos1.null_ipaddr = false;
-		strncpy(binds.resource_loos1.data_ipaddr, request.ipaddr().ascii(-1).c_str(), 1024);
-		binds.resource_loos1.length_ipaddr = request.ipaddr().ascii(-1).length();
+		strncpy(binds.resource_loos1.data_ipaddr, query.ipaddr().ascii(-1).c_str(), 1024);
+		binds.resource_loos1.length_ipaddr = query.ipaddr().ascii(-1).length();
 	// getting data
 	_stmt_execute(stmt_resource_loos1, "resource_loos1");
 	while (_stmt_fetch(stmt_resource_loos1, "resource_loos1"))
@@ -568,11 +600,10 @@ void c_database_mysql::_resource_loosf (c_request request)
 		MYSQL_BIND pbind[1]; memset(pbind, 0, sizeof(pbind));
 		BIND_LONG(pbind[0], resource_loos2, resource);
 		stmt_resource_loos2 = _stmt_make(pbind, NULL, "resource_loos2", std::string() +
-			//!!!! this query causes all LOCK TIMEOUT exceptions somewhy
-			"update t_filesearch_file" +
-			"   set f_stamp_lost = now()" +
-			" where f_filesearch_resource = ?" +
-			"   and f_stamp_lost is null");
+			"update t_file" +
+			"   set f_lost = now()" +
+			" where f_lost is null" +
+			"   and f_resource = ?");
 	}
 	// cycling throu all found resources' files
 	for (std::vector<c_unsigned>::const_iterator i = ids.begin(); i != ids.end(); i++)
@@ -594,10 +625,10 @@ void c_database_mysql::_resource_touch (std::vector<c_unsigned> ids)
 		MYSQL_BIND pbind[1]; memset(pbind, 0, sizeof(pbind));
 		BIND_LONG(pbind[0], resource_touch, id);
 		stmt_resource_touch = _stmt_make(pbind, NULL, "resource_touch", std::string() +
-			"update t_filesearch_resource" +
-			"   set f_stamp_seen = now()" +
-			"     , f_stamp_lost = NULL"
-			" where f_filesearch_resource = ?");
+			"update t_resource" +
+			"   set f_seen = now()" +
+			"     , f_lost = NULL"
+			" where f_resource = ?");
 	}
 	for (std::vector<c_unsigned>::const_iterator i = ids.begin(); i != ids.end(); i++)
 	{
@@ -622,7 +653,7 @@ void c_database_mysql::_resource_flush (bool forced)
 /***************************************************************************************************
                            SUPPLIMENTARY ROUTES FOR FILE REPORTING/FLUSHING
  ***************************************************************************************************/
-bool c_database_mysql::_file_find (c_unsigned & id, bool & changed, c_request request, c_fileinfo fileinfo)
+bool c_database_mysql::_file_find (c_unsigned & id, bool & changed, c_query query, c_fileinfo fileinfo)
 {
 	bool result = false;
 	// if statement is not prepared yet, preparing it now
@@ -639,14 +670,13 @@ bool c_database_mysql::_file_find (c_unsigned & id, bool & changed, c_request re
 		BIND_TIME    (rbind[4], file_find, ctime);
 		BIND_TIME    (rbind[5], file_find, mtime);
 		stmt_file_find = _stmt_make(pbind, rbind, "file_find", std::string() +
-			"select f_filesearch_file,t_filesearch_file.f_stamp_lost,f_container,f_size,f_ctime,f_mtime from t_filesearch_file, t_filesearch_resource" +
-			" where t_filesearch_file.f_filesearch_resource = t_filesearch_resource.f_filesearch_resource" +
-			"   and t_filesearch_file.f_filesearch_resource = ?" +
-			"   and f_path   = ?");
+			"select F.f_file,F.f_lost,F.f_container,F.f_size,F.f_ctime,F.f_mtime from t_resource R join t_file F using (f_resource)" +
+			" where F.f_resource = ?" +
+			"   and F.f_path     = ?");
 	}
 	// setting parameters
 	binds.file_find.null_resource = false;
-		binds.file_find.data_resource = request.resource().get();
+		binds.file_find.data_resource = query.resource().get();
 	binds.file_find.null_path = false;
 		strncpy(binds.file_find.data_path, fileinfo.path().ascii(true,true).c_str(), 1024);
 		binds.file_find.length_path = fileinfo.path().ascii(true,true).length();
@@ -670,7 +700,7 @@ bool c_database_mysql::_file_find (c_unsigned & id, bool & changed, c_request re
 	return result;
 }
 
-bool c_database_mysql::_file_add (c_unsigned & id, c_request request, c_fileinfo fileinfo)
+bool c_database_mysql::_file_add (c_unsigned & id, c_query query, c_fileinfo fileinfo)
 {
 	bool result = true;
 	// if statement is not prepared yet, preparing it now
@@ -685,12 +715,12 @@ bool c_database_mysql::_file_add (c_unsigned & id, c_request request, c_fileinfo
 		BIND_TIME    (pbind[5], file_add, ctime    );
 		BIND_TIME    (pbind[6], file_add, mtime    );
 		stmt_file_add = _stmt_make(pbind, NULL, "file_add", std::string() +
-			"insert into t_filesearch_file (f_filesearch_resource, f_path, f_name, f_container, f_size, f_ctime, f_mtime, f_stamp_found, f_stamp_seen, f_stamp_lost)" +
+			"insert into t_file (f_resource, f_path, f_name, f_container, f_size, f_ctime, f_mtime, f_found, f_seen, f_lost)" +
 			" values (?,?,?,?,?,?,?,now(),now(),NULL)");
 	}
 	// setting parameters
 	binds.file_add.null_resource = false;
-		binds.file_add.data_resource = request.resource().get();
+		binds.file_add.data_resource = query.resource().get();
 	binds.file_add.null_path = false;
 		strncpy(binds.file_add.data_path, fileinfo.path().ascii(true,true).c_str(), 1024);
 		binds.file_add.length_path = fileinfo.path().ascii(true,true).length();
@@ -725,24 +755,51 @@ bool c_database_mysql::_file_add (c_unsigned & id, c_request request, c_fileinfo
 	return result;
 }
 
-void c_database_mysql::_file_loose (c_request request)
+void c_database_mysql::_file_index (c_unsigned id, c_fileinfo fileinfo)
+{
+	// if statement is not prepared yet, preparing it now
+	if (!stmt_file_index)
+	{
+		MYSQL_BIND pbind[2]; memset(pbind, 0, sizeof(pbind));
+		BIND_LONG    (pbind[0], file_index, id  );
+		BIND_STRING  (pbind[1], file_index, key, 4096);
+		stmt_file_index = _stmt_make(pbind, NULL, "file_index", std::string() +
+			"insert into t_file_index (f_file, f_key)" +
+			" values (?,?)");
+	}
+	//
+	c_string::t_value key = fileinfo.path().basename();
+	while (!key.empty())
+	{
+	// setting parameters
+	binds.file_index.null_id = false;
+		binds.file_index.data_id = id.get();
+	binds.file_index.null_key = false;
+		strncpy(binds.file_index.data_key, key.c_str(), 1024);
+		binds.file_index.length_key = key.length();
+	// executing statement
+	_stmt_execute(stmt_file_index, "file_index");
+	// cutting key
+	key.erase(0,1);
+	}
+}	
+
+void c_database_mysql::_file_loose (c_query query)
 {
 	// if statement is not prepared yet, preparing it now
 	if (!stmt_file_loose)
 	{
 		MYSQL_BIND pbind[2]; memset(pbind, 0, sizeof(pbind));
-		BIND_LONG(pbind[0], file_loose, resource);
-		BIND_TIME(pbind[1], file_loose, seen    );
+		BIND_TIME(pbind[0], file_loose, seen    );
+		BIND_LONG(pbind[1], file_loose, resource);
 		stmt_file_loose = _stmt_make(pbind, NULL, "file_loose", std::string() +
-			"update t_filesearch_file" +
-			"   set f_stamp_lost = now()" +
-			" where f_filesearch_resource = ?"
-			"   and f_stamp_seen < ?" +
-			"   and f_stamp_lost is null");
+			"update t_file" +
+			"   set f_lost = now()" +
+			" where f_lost is null" +
+			"   and f_seen < ?" +
+			"   and f_resource = ?");
 	}
 	// setting parameters
-	binds.file_loose.null_resource = false;
-		binds.file_loose.data_resource = request.resource().get();
 	binds.file_loose.null_seen = false;
 		binds.file_loose.data_seen.year   = f_startup.get_year();
 		binds.file_loose.data_seen.month  = f_startup.get_month();
@@ -750,6 +807,8 @@ void c_database_mysql::_file_loose (c_request request)
 		binds.file_loose.data_seen.hour   = f_startup.get_hour();
 		binds.file_loose.data_seen.minute = f_startup.get_minute();
 		binds.file_loose.data_seen.second = f_startup.get_second();
+	binds.file_loose.null_resource = false;
+		binds.file_loose.data_resource = query.resource().get();
 	// getting data
 	_stmt_execute(stmt_file_loose, "file_loose");
 }
@@ -763,10 +822,10 @@ void c_database_mysql::_file_touch (std::vector<c_unsigned> ids)
 		MYSQL_BIND pbind[1]; memset(pbind, 0, sizeof(pbind));
 		BIND_LONG(pbind[0], file_touch, id);
 		stmt_file_touch = _stmt_make(pbind, NULL, "file_touch", std::string() +
-			"update t_filesearch_file" +
-			"   set f_stamp_seen = now()" +
-			"     , f_stamp_lost = NULL"
-			" where f_filesearch_file = ?");
+			"update t_file" +
+			"   set f_seen = now()" +
+			"     , f_lost = NULL"
+			" where f_file = ?");
 	}
 	for (std::vector<c_unsigned>::const_iterator i = ids.begin(); i != ids.end(); i++)
 	{
@@ -799,12 +858,12 @@ void c_database_mysql::_file_change (c_unsigned id, c_fileinfo fileinfo)
 		BIND_TIME    (pbind[3], file_change, mtime   );
 		BIND_LONG    (pbind[4], file_change, id      );
 		stmt_file_change = _stmt_make(pbind, NULL, "file_change", std::string() +
-			"update t_filesearch_file" +
+			"update t_file" +
 			"   set f_container  = ?" +
 			"     , f_size       = ?" +
 			"     , f_ctime      = ?" +
 			"     , f_mtime      = ?" +
-			" where f_filesearch_file = ?");
+			" where f_file = ?");
 	}
 	// setting parameters
 	binds.file_change.null_container = false;
@@ -835,58 +894,56 @@ void c_database_mysql::_file_change (c_unsigned id, c_fileinfo fileinfo)
 /***************************************************************************************************
                                FILE & SHARE REPORTING/FLUSHING ROUTINES
  ***************************************************************************************************/
-c_unsigned c_database_mysql::report_share (c_request request, c_string share)
+c_unsigned c_database_mysql::report_share (c_query query, c_string share)
 {
 	// гарантируем наличие нужного хоста с обновленными данными об обнаружении и получем его id
 	c_unsigned resourceid; bool changed = false;
-	if (!_resource_find(resourceid, changed, request, share)) // пытаемся найти существующий
+	if (!_resource_find(resourceid, changed, query, share)) // пытаемся найти существующий
 	{
-		if (!_resource_add(resourceid, request, share)) // если не найден, пытаемся создать его
+		if (!_resource_add(resourceid, query, share)) // если не найден, пытаемся создать его
 		{
-			if(!_resource_find(resourceid, changed, request, share)) // если не создался, предполагаем что он успел создаться параллельно, и пытаемся найти снова
+			if(!_resource_find(resourceid, changed, query, share)) // если не создался, предполагаем что он успел создаться параллельно, и пытаемся найти снова
 			{
 				throw e_database(__FILE__,__LINE__,"Can not find or create resource record."); // финиш. не существует и не создается.
-			}
-		}
-	}
+			} _resource_cache.push_back(resourceid);
+		} else _resource_index(resourceid, share);
+	} _resource_cache.push_back(resourceid);
 //???	if (changed) _resource_change(resourceid); // do not need this - there is no data that can change.
-	_resource_cache.push_back(resourceid);
 	_resource_flush(false);
 	return resourceid;
 }
 
-void c_database_mysql::flush_shares (c_request request)
+void c_database_mysql::flush_shares (c_query query)
 {
 	_resource_flush(true);
-	_resource_loose(request);
-	_resource_loosf(request);
+	_resource_loose(query);
+	_resource_loosf(query);
 }
 
 
 
-c_unsigned c_database_mysql::report_file (c_request request, c_fileinfo fileinfo)
+c_unsigned c_database_mysql::report_file (c_query query, c_fileinfo fileinfo)
 {
 	// гарантируем создание записи о файле или находим существующую
 	c_unsigned fileid; bool changed = false;
-	if (!_file_find(fileid, changed, request, fileinfo)) // пытаемся найти существующий
+	if (!_file_find(fileid, changed, query, fileinfo)) // пытаемся найти существующий
 	{
-		if (!_file_add(fileid, request, fileinfo)) // если не найден, пытаемся создать его
+		if (!_file_add(fileid, query, fileinfo)) // если не найден, пытаемся создать его
 		{
-			if(!_file_find(fileid, changed, request, fileinfo)) // если не создался, предполагаем что он успел создаться параллельно, и пытаемся найти снова
+			if(!_file_find(fileid, changed, query, fileinfo)) // если не создался, предполагаем что он успел создаться параллельно, и пытаемся найти снова
 			{
 				throw e_database(__FILE__,__LINE__,"Can not find or create file record."); // финиш. не существует и не создается.
-			}
-		}
-	}
+			} else _file_cache.push_back(fileid);
+		} else _file_index(fileid, fileinfo);
+	} else _file_cache.push_back(fileid);
 	if (changed) _file_change(fileid, fileinfo);
-	_file_cache.push_back(fileid);
 	_file_flush(false);
 	return fileid;
 }
 
 
-void c_database_mysql::flush_files (c_request request)
+void c_database_mysql::flush_files (c_query query)
 {
 	_file_flush(true);
-	_file_loose(request);
+	_file_loose(query);
 }

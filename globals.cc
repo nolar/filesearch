@@ -35,8 +35,8 @@ unsigned default_database_cachesize_resource = 5;
 unsigned default_database_cachesize_file     = 5;
 char *   default_path_delimiter         = "/";
 char *   default_scanner_smb            = "./filesearch-smb";
-char *   default_request_username_smb   = "guest";
-unsigned default_request_depth          = 100;
+char *   default_query_username_smb   = "guest";
+unsigned default_query_depth          = 100;
 
 long   logging_timeout__sec	= 1;
 long   logging_timeout__usec	= 0;

@@ -1,10 +1,10 @@
-#include "request.h"
+#include "query.h"
 
-c_request::c_request ()
+c_query::c_query ()
 {
 }
 
-c_request::c_request (const c_request & right)
+c_query::c_query (const c_query & right)
 {
 	f_id        = right.f_id;
 	f_protocol  = right.f_protocol;
@@ -21,7 +21,7 @@ c_request::c_request (const c_request & right)
 	f_resource  = right.f_resource;
 }
 
-c_request::c_request (c_unsigned a_id, c_protocol a_protocol, c_flag a_isnetwork, c_ipaddr a_ipaddr, c_unsigned a_ipport, c_string a_share, c_string a_username, c_string a_password, c_string a_workgroup, c_string a_selfname, c_unsigned a_timeout, c_unsigned a_depth)
+c_query::c_query (c_unsigned a_id, c_protocol a_protocol, c_flag a_isnetwork, c_ipaddr a_ipaddr, c_unsigned a_ipport, c_string a_share, c_string a_username, c_string a_password, c_string a_workgroup, c_string a_selfname, c_unsigned a_timeout, c_unsigned a_depth)
 {
 	f_id        = a_id;
 	f_protocol  = a_protocol;
@@ -40,7 +40,7 @@ c_request::c_request (c_unsigned a_id, c_protocol a_protocol, c_flag a_isnetwork
 
 
 
-std::string c_request::ascii() const
+std::string c_query::ascii() const
 {
 	std::string result = std::string() + f_protocol.ascii() + "://";
 	if (!f_username.empty())
@@ -59,92 +59,92 @@ std::string c_request::ascii() const
 
 
 
-c_unsigned c_request::id ()
+c_unsigned c_query::id ()
 {
 	return f_id;
 }
 
-c_protocol c_request::protocol ()
+c_protocol c_query::protocol ()
 {
 	return f_protocol;
 }
 
-c_flag c_request::isnetwork ()
+c_flag c_query::isnetwork ()
 {
 	return f_isnetwork;
 }
 
-void c_request::isnetwork (c_flag value)
+void c_query::isnetwork (c_flag value)
 {
 	f_isnetwork = value;
 }
 
-c_ipaddr c_request::ipaddr ()
+c_ipaddr c_query::ipaddr ()
 {
 	return f_ipaddr;
 }
 
-void c_request::ipaddr (c_ipaddr value)
+void c_query::ipaddr (c_ipaddr value)
 {
 	f_ipaddr = value;
 }
 
-c_unsigned c_request::ipport ()
+c_unsigned c_query::ipport ()
 {
 	return f_ipport;
 }
 
-c_string c_request::share ()
+c_string c_query::share ()
 {
 	return f_share;
 }
 
-void c_request::share (c_string value)
+void c_query::share (c_string value)
 {
 	f_share = value;
 }
 
-c_string c_request::username ()
+c_string c_query::username ()
 {
 	return f_username;
 }
 
-c_string c_request::password ()
+c_string c_query::password ()
 {
 	return f_password;
 }
 
-c_string c_request::workgroup ()
+c_string c_query::workgroup ()
 {
 	return f_workgroup;
 }
 
-c_string c_request::selfname ()
+c_string c_query::selfname ()
 {
 	return f_selfname;
 }
 
-c_unsigned c_request::timeout ()
+c_unsigned c_query::timeout ()
 {
 	return f_timeout;
 }
 
-c_unsigned c_request::depth ()
+c_unsigned c_query::depth ()
 {
 	return f_depth;
 }
 
-void c_request::depth (c_unsigned value)
+void c_query::depth (c_unsigned value)
 {
 	f_depth = value;
 }
 
-c_unsigned c_request::resource ()
+c_unsigned c_query::resource ()
 {
 	return f_resource;
 }
 
-void c_request::resource (c_unsigned value)
+void c_query::resource (c_unsigned value)
 {
 	f_resource = value;
 }
