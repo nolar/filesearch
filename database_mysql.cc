@@ -896,15 +896,15 @@ void c_database_mysql::_file_change (c_unsigned id, c_fileinfo fileinfo)
  ***************************************************************************************************/
 c_unsigned c_database_mysql::report_share (c_query query, c_string share)
 {
-	// гарантируем наличие нужного хоста с обновленными данными об обнаружении и получем его id
+	// пЁп╟я─п╟п╫я┌п╦я─я┐п╣п╪ п╫п╟п╩п╦я┤п╦п╣ п╫я┐п╤п╫п╬пЁп╬ я┘п╬я│я┌п╟ я│ п╬п╠п╫п╬п╡п╩п╣п╫п╫я▀п╪п╦ п╢п╟п╫п╫я▀п╪п╦ п╬п╠ п╬п╠п╫п╟я─я┐п╤п╣п╫п╦п╦ п╦ п©п╬п╩я┐я┤п╣п╪ п╣пЁп╬ id
 	c_unsigned resourceid; bool changed = false;
-	if (!_resource_find(resourceid, changed, query, share)) // пытаемся найти существующий
+	if (!_resource_find(resourceid, changed, query, share)) // п©я▀я┌п╟п╣п╪я│я▐ п╫п╟п╧я┌п╦ я│я┐я┴п╣я│я┌п╡я┐я▌я┴п╦п╧
 	{
-		if (!_resource_add(resourceid, query, share)) // если не найден, пытаемся создать его
+		if (!_resource_add(resourceid, query, share)) // п╣я│п╩п╦ п╫п╣ п╫п╟п╧п╢п╣п╫, п©я▀я┌п╟п╣п╪я│я▐ я│п╬п╥п╢п╟я┌я▄ п╣пЁп╬
 		{
-			if(!_resource_find(resourceid, changed, query, share)) // если не создался, предполагаем что он успел создаться параллельно, и пытаемся найти снова
+			if(!_resource_find(resourceid, changed, query, share)) // п╣я│п╩п╦ п╫п╣ я│п╬п╥п╢п╟п╩я│я▐, п©я─п╣п╢п©п╬п╩п╟пЁп╟п╣п╪ я┤я┌п╬ п╬п╫ я┐я│п©п╣п╩ я│п╬п╥п╢п╟я┌я▄я│я▐ п©п╟я─п╟п╩п╩п╣п╩я▄п╫п╬, п╦ п©я▀я┌п╟п╣п╪я│я▐ п╫п╟п╧я┌п╦ я│п╫п╬п╡п╟
 			{
-				throw e_database(__FILE__,__LINE__,"Can not find or create resource record."); // финиш. не существует и не создается.
+				throw e_database(__FILE__,__LINE__,"Can not find or create resource record."); // я└п╦п╫п╦я┬. п╫п╣ я│я┐я┴п╣я│я┌п╡я┐п╣я┌ п╦ п╫п╣ я│п╬п╥п╢п╟п╣я┌я│я▐.
 			} _resource_cache.push_back(resourceid);
 		} else _resource_index(resourceid, share);
 	} _resource_cache.push_back(resourceid);
@@ -924,15 +924,15 @@ void c_database_mysql::flush_shares (c_query query)
 
 c_unsigned c_database_mysql::report_file (c_query query, c_fileinfo fileinfo)
 {
-	// гарантируем создание записи о файле или находим существующую
+	// пЁп╟я─п╟п╫я┌п╦я─я┐п╣п╪ я│п╬п╥п╢п╟п╫п╦п╣ п╥п╟п©п╦я│п╦ п╬ я└п╟п╧п╩п╣ п╦п╩п╦ п╫п╟я┘п╬п╢п╦п╪ я│я┐я┴п╣я│я┌п╡я┐я▌я┴я┐я▌
 	c_unsigned fileid; bool changed = false;
-	if (!_file_find(fileid, changed, query, fileinfo)) // пытаемся найти существующий
+	if (!_file_find(fileid, changed, query, fileinfo)) // п©я▀я┌п╟п╣п╪я│я▐ п╫п╟п╧я┌п╦ я│я┐я┴п╣я│я┌п╡я┐я▌я┴п╦п╧
 	{
-		if (!_file_add(fileid, query, fileinfo)) // если не найден, пытаемся создать его
+		if (!_file_add(fileid, query, fileinfo)) // п╣я│п╩п╦ п╫п╣ п╫п╟п╧п╢п╣п╫, п©я▀я┌п╟п╣п╪я│я▐ я│п╬п╥п╢п╟я┌я▄ п╣пЁп╬
 		{
-			if(!_file_find(fileid, changed, query, fileinfo)) // если не создался, предполагаем что он успел создаться параллельно, и пытаемся найти снова
+			if(!_file_find(fileid, changed, query, fileinfo)) // п╣я│п╩п╦ п╫п╣ я│п╬п╥п╢п╟п╩я│я▐, п©я─п╣п╢п©п╬п╩п╟пЁп╟п╣п╪ я┤я┌п╬ п╬п╫ я┐я│п©п╣п╩ я│п╬п╥п╢п╟я┌я▄я│я▐ п©п╟я─п╟п╩п╩п╣п╩я▄п╫п╬, п╦ п©я▀я┌п╟п╣п╪я│я▐ п╫п╟п╧я┌п╦ я│п╫п╬п╡п╟
 			{
-				throw e_database(__FILE__,__LINE__,"Can not find or create file record."); // финиш. не существует и не создается.
+				throw e_database(__FILE__,__LINE__,"Can not find or create file record."); // я└п╦п╫п╦я┬. п╫п╣ я│я┐я┴п╣я│я┌п╡я┐п╣я┌ п╦ п╫п╣ я│п╬п╥п╢п╟п╣я┌я│я▐.
 			} else _file_cache.push_back(fileid);
 		} else _file_index(fileid, fileinfo);
 	} else _file_cache.push_back(fileid);

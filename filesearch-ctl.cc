@@ -1,9 +1,9 @@
 /*
- * Сканер ресурсов обслуживаемых компьютеров.
+ * п║п╨п╟п╫п╣я─ я─п╣я│я┐я─я│п╬п╡ п╬п╠я│п╩я┐п╤п╦п╡п╟п╣п╪я▀я┘ п╨п╬п╪п©я▄я▌я┌п╣я─п╬п╡.
  *
- * Формат входных данных (stdin):
+ * п╓п╬я─п╪п╟я┌ п╡я┘п╬п╢п╫я▀я┘ п╢п╟п╫п╫я▀я┘ (stdin):
  *
- * Формат выходных данных (stdout):
+ * п╓п╬я─п╪п╟я┌ п╡я▀я┘п╬п╢п╫я▀я┘ п╢п╟п╫п╫я▀я┘ (stdout):
  *
  * (a) Sergei Vasilyev aka nolar 2005
  */
@@ -42,12 +42,12 @@ c_forker * forker = NULL;
 inline void scan_address (c_query query)
 {
 	DEBUG("Checking status of url '"+query.ascii()+"'.");
-	// проверяем, не была ли такая шара с такого адреса уже найдена
+	// п©я─п╬п╡п╣я─я▐п╣п╪, п╫п╣ п╠я▀п╩п╟ п╩п╦ я┌п╟п╨п╟я▐ я┬п╟я─п╟ я│ я┌п╟п╨п╬пЁп╬ п╟п╢я─п╣я│п╟ я┐п╤п╣ п╫п╟п╧п╢п╣п╫п╟
 	bool already = database->status_check(query);
-	// если таковой еще нет, то сканируем эту шару на этом компьютере
+	// п╣я│п╩п╦ я┌п╟п╨п╬п╡п╬п╧ п╣я┴п╣ п╫п╣я┌, я┌п╬ я│п╨п╟п╫п╦я─я┐п╣п╪ я█я┌я┐ я┬п╟я─я┐ п╫п╟ я█я┌п╬п╪ п╨п╬п╪п©я▄я▌я┌п╣я─п╣
 	if (!already)
 	{
-		// сканируем компьютер или конкретную шару
+		// я│п╨п╟п╫п╦я─я┐п╣п╪ п╨п╬п╪п©я▄я▌я┌п╣я─ п╦п╩п╦ п╨п╬п╫п╨я─п╣я┌п╫я┐я▌ я┬п╟я─я┐
 		DEBUG("Creating scanner for url '"+query.ascii()+"'.");
 		if (query.protocol().is_smb())
 		{
@@ -73,7 +73,7 @@ int main (int argc, char ** argv, char ** env) {
 	try
 	{
 		DEBUG("Main filesearcher started.");
-		// получение параметров вызова программы и занесение их в переменные
+		// п©п╬п╩я┐я┤п╣п╫п╦п╣ п©п╟я─п╟п╪п╣я┌я─п╬п╡ п╡я▀п╥п╬п╡п╟ п©я─п╬пЁя─п╟п╪п╪я▀ п╦ п╥п╟п╫п╣я│п╣п╫п╦п╣ п╦я┘ п╡ п©п╣я─п╣п╪п╣п╫п╫я▀п╣
 		//!!!
 		s_log.set_fd(1);
 		s_debug.set_fd(2);
@@ -95,7 +95,7 @@ int main (int argc, char ** argv, char ** env) {
 		for (c_queries::iterator query = queries.begin(); query != queries.end(); query++)
 		{
 			LOG("query for "+(*query).ipaddr().ascii());
-			// пробежка по всем адресам проверяемого блока
+			// п©я─п╬п╠п╣п╤п╨п╟ п©п╬ п╡я│п╣п╪ п╟п╢я─п╣я│п╟п╪ п©я─п╬п╡п╣я─я▐п╣п╪п╬пЁп╬ п╠п╩п╬п╨п╟
 			c_ipaddr address_from = (*query).ipaddr().range_first(); 
 			c_ipaddr address_till = (*query).ipaddr().range_last (); 
 			if ((*query).isnetwork()) { address_from++; address_till--; }

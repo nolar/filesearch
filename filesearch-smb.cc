@@ -1,9 +1,9 @@
 /*
- * Сканер ресурсов обслуживаемых компьютеров.
+ * п║п╨п╟п╫п╣я─ я─п╣я│я┐я─я│п╬п╡ п╬п╠я│п╩я┐п╤п╦п╡п╟п╣п╪я▀я┘ п╨п╬п╪п©я▄я▌я┌п╣я─п╬п╡.
  *
- * Формат входных данных (stdin):
+ * п╓п╬я─п╪п╟я┌ п╡я┘п╬п╢п╫я▀я┘ п╢п╟п╫п╫я▀я┘ (stdin):
  *
- * Формат выходных данных (stdout):
+ * п╓п╬я─п╪п╟я┌ п╡я▀я┘п╬п╢п╫я▀я┘ п╢п╟п╫п╫я▀я┘ (stdout):
  *
  * (a) Sergei Vasilyev aka nolar 2005
  */
@@ -100,7 +100,7 @@ int main(int argc, char ** argv, char ** env) {
 		s_debug.set_fd(2);
 		c_stream s_task(0); s_task.set_min_timeout(default_timeout_task__sec, default_timeout_task__usec);
 		c_stream s_data(3); s_data.set_min_timeout(10); // should be from options!!!
-		// получение параметров вызова программы и занесение их в переменные
+		// п©п╬п╩я┐я┤п╣п╫п╦п╣ п©п╟я─п╟п╪п╣я┌я─п╬п╡ п╡я▀п╥п╬п╡п╟ п©я─п╬пЁя─п╟п╪п╪я▀ п╦ п╥п╟п╫п╣я│п╣п╫п╦п╣ п╦я┘ п╡ п©п╣я─п╣п╪п╣п╫п╫я▀п╣
 		DEBUG("Getting initial parameters for scanning.");
 		c_stream::t_map task = s_task.read_map(NULL);
 		DEBUG("Reading of parameters finished. Starting to parse them.");

@@ -1,0 +1,67 @@
+* parameters of scanning process should be taken from command line / database / defaults.
+
+* database type and connection parameters should be made configurable.
+
+* criterias for successfull finishing of scanner process should be corrected to assume
+  success when special 'finish' event appears on data pipe, but not on exit status of process.
+  in this situation 'finish' event should not be condition to think that there were any data.
+  i.e. we should think that running was successful only when any data received AND 'finish' event
+  occured (AND when there were no particular errors or timeouts while scanning in scanner?).
+
+* make statistic collection for all type of operations with STAT() macro, that can be disabled
+  to build optimized binary (just like DEBUG() macro). collect alost statistics in database
+  tables (ex: number of new bytes found / bytes lost during this scan... and so on).
+
+* make all debug and log messages prefixed with type of process that wrote them
+  (central coordinator, controller, scanner).
+
+* make exceptions, that accept line number and source filename information.
+
+* increase resource/file cache size for less frequent queries to database.
+
+* is it possible to make queries for resources/files batched?
+
+* mark the way file was lost. 1 if file was not found while scanning resources, 2 - if resource
+  was not found while scanning host (ex., if it was closed temporarly).
+
+* startup time for process should be retrieved as 'select now()' query, but not with system calls.
+  this is because all time comparisions are made with now() function of sql server, and we should
+  use sql-server time, not scanner-server time.
+
+* minimize file descriptor in pipes with dup(0). zero is the first descriptor, that can be
+  allocated for pipes. this minimization will simple select() to use smaller number of fds.
+
+* scanner for status of hosts and resources. it should scan fast and often. for every
+  protocol+host+port set it tries to connect, and if all is ok - sets up 'online' status for
+  all resources with such parameters. if connection fails, it sets up 'offline' status.
+
+* use setproctitle() to inform admin of the status of each individual central/controller/scanner.
+
+* make central to wait for all children, then send SIGKILL to process group to kill all subchildren,
+  that did not exited normal way under control of controllers (ex., when controller exited on exeption
+  or core dumped or was killed manually).
+
+* determining duped information with 'request blocks'. i.e. smb://10.10 - block N1,
+  192.168+80.253 - block N2. when filename+size+ctime+mtime in block N2 have the same file
+  in block N2 - it is dupe.
+  block type can be 'vary' - when any-to-any host/resource allowed for dupe checking,
+  and 'sameip' - when only same address allowed for checking.
+  example:
+   N1 - smb://10.10   N2 - smb://192.168+80.253   N3 - ftp://10.10  N4 - ftp://192.168+80.253
+   N1-N2 - vary; N1-N3 - sameip, N1-N4 - vary
+                 N2-N3 - vary  , N2-N4 - sameip
+                                 N3-N4 - vary
+  this types can be hardcoded or configured.
+
+* database is sometimes evry slow because of locking. use transactions!
+  2005-05-08 11:32:07 [22323] Trying query 'select f_filesearch_file,t_filesearch_file.f_stamp_lost,f_container,f_size,unix_time
+  2005-05-08 11:32:51 [22323] Query successful.
+  2005-05-08 11:32:51 [22323] File found; id=41852; changed=true.
+
+* when there is a lot of files for scanner, it can write them too quickly, and controller process can not put them into
+  database so quick; then the scanner exits with exception "timeout while selecting for write". make this timeout longer.
+  find proper value in seconds to typical needs.
+
+* make the data model transactional, excluding deadlock for table (actually we should use row-level locking).
+
+* make proper indexes for tables.
